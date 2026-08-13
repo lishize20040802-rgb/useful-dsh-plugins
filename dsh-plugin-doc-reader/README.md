@@ -1,6 +1,6 @@
 # `dsh-plugin-doc-reader`
 
-English | [中文](#中文)
+[中文说明](./README.zh.md)
 
 A DeepSeek Harness host plugin: the model-facing **`read_document`** tool. It reads document files that the plain `read` tool cannot handle — PDF, DOCX and XLSX — plus UTF-8 text files, all through the harness filesystem backend (`ctx.fs`), so it inherits the session workspace resolution, the sandbox policy and the fs-observation policy exactly like the built-in tools.
 
@@ -28,7 +28,7 @@ Extracted text is windowed with the same semantics as the built-in `read` tool: 
 ## Installation
 
 ```sh
-dsh plugin --profile web add <path-to-this-package>
+dsh plugin --profile web add dsh-plugin-doc-reader
 # restart dsh web
 ```
 
@@ -56,15 +56,3 @@ One guidance section (`tool:read-document`) points the model at `read_document` 
 - **Legacy `.doc` is not parsed** — only OOXML `.docx`.
 - **Large documents are windowed** — the model reads one window per call; very long files need several paged calls.
 - Formula-heavy PDFs lose mathematical structure (plain text only; no LaTeX reconstruction).
-
----
-
-## 中文
-
-一个 DeepSeek Harness 主机插件：提供模型可用的 **`read_document`** 工具，读取普通 `read` 工具无法处理的文档——PDF、DOCX、XLSX——以及 UTF-8 文本文件；文件访问全部经由 `ctx.fs`（Harness 文件系统后端），自动继承会话工作区解析、沙箱策略与 fs 观察策略，与内置工具行为一致。
-
-四种格式按扩展名分发（也可用 `format` 参数显式指定）：PDF 走 `pdf-parse`（只读文字层）、DOCX 走 `mammoth`、XLSX 走 `xlsx` 逐表序列化、其余按 UTF-8 文本（二进制拒绝）。提取结果沿用内置 `read` 的行号窗口语义（`offset`/`limit` 分页、行长与字节上限、OpenCode 风格信封）。
-
-配置：`readLimit`（默认 2000 行）、`maxFileBytes`（默认 64MB）、`sheetRowLimit`（默认每表 200 行）。安装与构建方式同英文部分。
-
-已知局限：**扫描版 PDF 无文字层，提取为空**——OCR 识图已明确暂缓（2026-08 决定：当前不做，未来若加将作为可选提取器而非默认）；文本模式仅 UTF-8；不支持旧版 `.doc`；长文档需分页多次读取；公式型 PDF 只保留纯文本、不重建数学结构。

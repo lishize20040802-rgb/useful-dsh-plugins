@@ -1,9 +1,10 @@
 # useful-dsh-plugins
 
-> 社区插件集合 — Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`@deepseek-ai/dsh`).
-> **本项目为独立社区项目，与 DeepSeek 官方无隶属关系。** This is an independent community project, **not affiliated with DeepSeek**.
+Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`@deepseek-ai/dsh`). **This is an independent community project, not affiliated with DeepSeek.**
 
 Two drop-in plugins that work together: upload a file in the chat composer, then let the agent read it.
+
+[中文说明](./README.zh.md)
 
 ## Packages
 
@@ -37,7 +38,7 @@ cd dsh-plugin-doc-reader && npm install --legacy-peer-deps && npm test
 cd dsh-upload-button && npm install --legacy-peer-deps && npm run build && npm test
 ```
 
-Architecture notes and the UI-mechanism deep dive live in [`docs/`](./docs) — notably the input-machine occurrence pipeline research (`docs/dsh-web-ui-plugin-research.md`), which is the reference for anyone building composer-attachment plugins on this platform.
+Architecture notes and the UI-mechanism deep dive live in [`docs/`](./docs) (currently in Chinese) — notably the input-machine occurrence pipeline research (`docs/dsh-web-ui-plugin-research.md`), which is the reference for anyone building composer-attachment plugins on this platform.
 
 ## License
 
