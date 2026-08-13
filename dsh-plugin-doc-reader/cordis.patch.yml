@@ -1,0 +1,9 @@
+# dsh-plugin-doc-reader bundle patch: one insert registering the read_document tool plugin.
+# The row id must match the plugin's exported cordis `name`.
+- insert:
+    - id: tool-doc-reader
+      name: 'dsh-plugin-doc-reader'
+      config:
+        readLimit: 2000
+        maxFileBytes: 67108864
+        sheetRowLimit: 200

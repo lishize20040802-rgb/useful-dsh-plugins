@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# local tooling (pnpm install, npm cache, pnpm store)
+tools/
+
+# user uploads (runtime data, never committed)
+uploads/
+
+# build output — rebuilt by `npm run build` / `prepublishOnly`
+dsh-upload-button/lib/
+
+# research artifacts not meant for the public repo
+docs/_dsh_boot_page.html
+# fixture sourced from third-party copyrighted material (regenerate via scripts/make-fixtures.mjs)
+dsh-plugin-doc-reader/test/fixtures/demo.pdf
+
+# local machine config
+.npmrc
+
+# misc
+*.log
+.DS_Store

@@ -1,0 +1,61 @@
+{
+  "name": "dsh-upload-button",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness dual-face plugin: a borderless file upload button in the composer toolbar with floating colored file cards; uploaded files attach to the outgoing message automatically.",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "upload",
+    "attachment"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lishize20040802-rgb/useful-dsh-plugins.git",
+    "directory": "dsh-upload-button"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/schemastery": "*",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "~18.3.1",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.2"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "allowScripts": {
+    "esbuild@0.24.2": true
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "dsh-plugin-doc-reader",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness host plugin: a read_document tool for text, PDF, DOCX and XLSX files over the harness filesystem backend (ctx.fs).",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "pdf",
+    "docx",
+    "xlsx",
+    "read"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lishize20040802-rgb/useful-dsh-plugins.git",
+    "directory": "dsh-plugin-doc-reader"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "pdf-parse": "1.1.1",
+    "mammoth": "^1.8.0",
+    "xlsx": "^0.18.5"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-fs": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/schemastery": "*"
+  }
+}
