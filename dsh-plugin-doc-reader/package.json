@@ -37,6 +37,10 @@
     "mammoth": "^1.8.0",
     "xlsx": "^0.18.5"
   },
+  "scripts": {
+    "test": "node --test",
+    "prepublishOnly": "npm test"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-fs": "*",
     "@deepseek-ai/dsh-tools": "*",
