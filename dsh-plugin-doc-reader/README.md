@@ -51,7 +51,7 @@ One guidance section (`tool:read-document`) points the model at `read_document` 
 
 ## Known Limitations
 
-- **Scanned PDFs yield no text** — `pdf-parse` reads the embedded text layer only; image-only (scanned) PDFs come back empty. OCR is **explicitly deferred** (decision 2026-08: an image-recognition path is out of scope for now; if added later it would be an opt-in extractor, not a default, given its cost and formula-rendering quality).
+- **No image recognition (OCR)** — this plugin extracts **text only**; it cannot read text out of images. Scanned/image-only PDFs (page photos with no text layer) come back empty, and standalone pictures (PNG/JPG screenshots) are refused as binary. OCR / 识图 is **explicitly deferred** (decision 2026-08: out of scope for now; if added later it would be an opt-in extractor, not a default, given its cost and formula-rendering quality).
 - **Text mode is UTF-8 only** — other encodings decode as garbage; binary content is refused rather than echoed.
 - **Legacy `.doc` is not parsed** — only OOXML `.docx`.
 - **Large documents are windowed** — the model reads one window per call; very long files need several paged calls.

@@ -11,7 +11,7 @@ Two drop-in plugins that work together: upload a file in the chat composer, then
 | Package | Type | What it does |
 |---|---|---|
 | [`dsh-upload-button`](./dsh-upload-button) | dual-face (host + browser) | A borderless 📎 button in the composer toolbar. Uploaded files appear as floating, Microsoft-classic colored cards above the input; pressing the ordinary Send button attaches their saved paths to the outgoing message automatically (native input-machine occurrence pipeline — zero send interception). |
-| [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | The model-facing `read_document` tool: reads text, PDF, DOCX and XLSX files through the harness filesystem backend (`ctx.fs`), with the built-in read tool's line-window semantics. |
+| [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | The model-facing `read_document` tool: reads text, PDF, DOCX and XLSX files through the harness filesystem backend (`ctx.fs`), with the built-in read tool's line-window semantics. **Text only — no image recognition (OCR); scanned PDFs yield no text.** |
 
 ## Installation
 

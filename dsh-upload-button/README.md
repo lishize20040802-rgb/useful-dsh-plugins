@@ -47,4 +47,4 @@ None directly: this plugin registers no model tool and no prompt section. Its on
 - UI labels are hardcoded Chinese; a proper `locale` namespace (the official `t()` kit) is the intended follow-up.
 - The reference source registers under the `@` trigger with zero candidates; the `@` menu should never list it, but that relies on empty-group hiding upstream.
 - Removing a token via Backspace leaves the file in `uploadDir` (content-addressed, no garbage collection yet); the card's ✕ cleans up all three.
-- Scanned PDFs and other binary formats upload fine but their content readability depends on a suitable reader plugin (e.g. `dsh-plugin-doc-reader`; OCR is out of scope).
+- Scanned PDFs and other binary formats upload fine, but their content readability depends on a suitable reader plugin (e.g. `dsh-plugin-doc-reader`, which extracts text only — **no image recognition / OCR**).
