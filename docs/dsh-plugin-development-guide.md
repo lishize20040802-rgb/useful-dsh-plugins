@@ -94,6 +94,7 @@ dsh --profile web --dump-config            # 组合树里应出现插件行
 # 重启 dsh web 生效；会话持久化，重启后原 URL 继续对话
 ```
 
+- 已发布到 npm 后，用户侧即"一条命令 + 一次重启"：`dsh plugin --profile web add useful-dsh-plugins`（元包一键装全部）。npm 令牌相关：2FA 账号发布需 Automation 类型 granular token，且 npm 只读取**包目录内**的项目级 `.npmrc`（放上级目录会被忽略），用后即删并到 npm 网站 Revoke。
 - 本机"不写 C 盘"妥协：依赖全部预装在插件自己的 `node_modules`（D 盘），manifest 里对 profile 可见部分用 peerDependencies 声明，profile 的 pnpm（`autoInstallPeers: false`）不复制依赖到 C 盘。**开源发布版不需要此妥协**，应正常使用 dependencies。
 - D 盘插件依赖 `@deepseek-ai/*` 的解析：`D:\harness\node_modules\@deepseek-ai\{cordis,schemastery,dsh-tools,dsh-fs}` → junction 指向全局安装的嵌套 `dsh\node_modules\@deepseek-ai\`。
 

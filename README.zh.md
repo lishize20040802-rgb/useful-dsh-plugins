@@ -13,6 +13,15 @@
 
 ## 安装
 
+一条命令安装全部：
+
+```sh
+dsh plugin --profile web add useful-dsh-plugins
+# 重启 dsh web
+```
+
+也可以分别安装：
+
 ```sh
 dsh plugin --profile web add dsh-upload-button
 dsh plugin --profile web add dsh-plugin-doc-reader

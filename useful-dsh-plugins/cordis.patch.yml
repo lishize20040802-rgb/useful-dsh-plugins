@@ -1,0 +1,10 @@
+# useful-dsh-plugins meta bundle patch: one insert per bundled plugin.
+# Both rows resolve from the profile's node_modules (installed as this
+# package's dependencies). Plugin defaults come from each plugin's own
+# Config schema — no config restated here.
+- insert:
+    - id: upload-button
+      name: 'dsh-upload-button'
+
+    - id: tool-doc-reader
+      name: 'dsh-plugin-doc-reader'

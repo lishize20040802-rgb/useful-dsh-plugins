@@ -15,6 +15,15 @@ Two drop-in plugins that work together: upload a file in the chat composer, then
 
 ## Installation
 
+One command installs everything:
+
+```sh
+dsh plugin --profile web add useful-dsh-plugins
+# restart dsh web
+```
+
+Or install the plugins individually:
+
 ```sh
 dsh plugin --profile web add dsh-upload-button
 dsh plugin --profile web add dsh-plugin-doc-reader

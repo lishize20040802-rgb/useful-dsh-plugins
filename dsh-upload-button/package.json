@@ -1,6 +1,6 @@
 {
   "name": "dsh-upload-button",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness dual-face plugin: a borderless file upload button in the composer toolbar with floating colored file cards; uploaded files attach to the outgoing message automatically.",
   "keywords": [
     "deepseek",
