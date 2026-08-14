@@ -69,7 +69,7 @@ test('restore clears all managed entries', async () => {
   assert.equal(res.status, 200)
   assert.equal(JSON.parse(res.body).removed, 2)
   const patch = readFileSync(join(dir, 'cordis.patch.yml'), 'utf8')
-  assert.ok(!patch.includes('dsh-plugin-manager managed entry'))
+  assert.ok(!patch.includes('useful-dsh-plugin-manager managed entry'))
 })
 
 test('invalid ids and names are rejected', async () => {

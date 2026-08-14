@@ -1,4 +1,4 @@
-# `dsh-plugin-manager`
+# `useful-dsh-plugin-manager`
 
 [中文说明](./README.zh.md)
 
@@ -32,7 +32,7 @@ Same fence as `dsh-upload-button`: loopback `Host` only, same-origin `Origin`/Fe
 ## Installation
 
 ```sh
-dsh plugin --profile web add dsh-plugin-manager
+dsh plugin --profile web add useful-dsh-plugin-manager
 # or with the rest of the family:
 dsh plugin --profile web add useful-dsh-plugins
 # restart dsh web
@@ -47,5 +47,6 @@ dsh plugin --profile web add useful-dsh-plugins
 
 - Enable/disable changes require a `dsh web` restart (the Web composition ships with the HMR watcher disabled upstream).
 - Repair while the server is running can hit Windows file locks; the button reports this and works after a restart.
-- Updating requires `pnpm` on PATH (the same requirement as the official `dsh plugin` command).
+- Updating requires `pnpm` on PATH (the same requirement as the official `dsh plugin` command); the manager passes `--config.minimumReleaseAge=0` so pnpm's release-age supply-chain gate cannot block fresh releases.
 - The tab lists raw Loader ids/modules; friendly names come from module specifiers.
+- Installing the meta package right after a release may need the same age-gate bypass on the install command: `dsh plugin --profile web add useful-dsh-plugins@latest --config.minimumReleaseAge=0`.

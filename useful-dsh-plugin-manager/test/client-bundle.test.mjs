@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-const PACKAGE_ID = 'dsh-plugin-manager'
+const PACKAGE_ID = 'useful-dsh-plugin-manager'
 
 test('client bundle is a ModuleLoader factory envelope', () => {
   const src = readFileSync(fileURLToPath(new URL('../lib/client.js', import.meta.url)), 'utf8')

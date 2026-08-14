@@ -1,4 +1,4 @@
-// dsh-plugin-manager — browser half.
+// useful-dsh-plugin-manager — browser half.
 //
 // A "管理" tab in Web Settings → Plugins. It lists every Loader entry via the
 // official `remote.pluginInventory.list()` face and offers, per row:
@@ -16,7 +16,7 @@ import { IconCheckOutline16, IconCloseOutline16, IconRefreshOutline16 } from '@d
 export const inject = ['slots', 'locale', 'remote', 'remote.pluginInventory']
 
 const NS = 'settings.pluginManager'
-const STYLE_TAG = 'dsh-plugin-manager/style.css'
+const STYLE_TAG = 'useful-dsh-plugin-manager/style.css'
 
 const zh = {
   tab: '管理',
@@ -91,7 +91,7 @@ function injectCss() {
   if (typeof document === 'undefined') return
   if (document.querySelector(`style[data-plugin-css=${JSON.stringify(STYLE_TAG)}]`) !== null) return
   const tag = document.createElement('style')
-  tag.dataset.plugin = 'dsh-plugin-manager'
+  tag.dataset.plugin = 'useful-dsh-plugin-manager'
   tag.dataset.pluginCss = STYLE_TAG
   tag.textContent = `
 .dsh-pm-root{display:flex;flex-direction:column;gap:10px}
@@ -305,7 +305,7 @@ function ManageTab({ list, t }: TabProps) {
 
 export function apply(ctx: any) {
   injectCss()
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-plugin-manager: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'useful-dsh-plugin-manager: dictionaries')
   const t = ctx.locale.bind(NS)
   const list = async () => {
     const result = await ctx.remote.pluginInventory.list()
@@ -322,6 +322,6 @@ export function apply(ctx: any) {
       inject: () => ({ list })
     }, ManageTab))
   } catch (err) {
-    console.warn('[dsh-plugin-manager] settings tab registration failed; the manager tab stays absent:', err)
+    console.warn('[useful-dsh-plugin-manager] settings tab registration failed; the manager tab stays absent:', err)
   }
 }

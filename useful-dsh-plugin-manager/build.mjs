@@ -1,7 +1,7 @@
-// Build both halves of the dsh-plugin-manager dual-face plugin.
+// Build both halves of the useful-dsh-plugin-manager dual-face plugin.
 import { build } from 'esbuild'
 
-const PACKAGE_ID = 'dsh-plugin-manager'
+const PACKAGE_ID = 'useful-dsh-plugin-manager'
 
 const CLIENT_EXTERNALS = [
   'react',

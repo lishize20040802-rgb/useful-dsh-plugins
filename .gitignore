@@ -9,7 +9,7 @@ uploads/
 
 # build output — rebuilt by `npm run build` / `prepublishOnly`
 dsh-upload-button/lib/
-dsh-plugin-manager/lib/
+useful-dsh-plugin-manager/lib/
 
 # research artifacts not meant for the public repo
 docs/_dsh_boot_page.html

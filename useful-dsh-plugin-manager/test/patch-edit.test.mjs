@@ -8,7 +8,7 @@ import {
   isValidId
 } from '../lib/index.js'
 
-const MARKER = '# dsh-plugin-manager managed entry'
+const MARKER = '# useful-dsh-plugin-manager managed entry'
 
 test('addManagedDisable appends one marked entry idempotently', () => {
   const first = addManagedDisable('[]\n', 'my-plugin')

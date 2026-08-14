@@ -1,6 +1,6 @@
 {
-  "name": "dsh-plugin-manager",
-  "version": "0.1.0",
+  "name": "useful-dsh-plugin-manager",
+  "version": "0.1.1",
   "description": "DeepSeek Harness dual-face plugin: a visual plugin manager tab in Web Settings — enable/disable any plugin row, check installed plugins against the npm registry, and update them to the latest published version.",
   "keywords": [
     "deepseek",
@@ -28,7 +28,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lishize20040802-rgb/useful-dsh-plugins.git",
-    "directory": "dsh-plugin-manager"
+    "directory": "useful-dsh-plugin-manager"
   },
   "dsh": {
     "client": {

@@ -1,6 +1,6 @@
 {
   "name": "useful-dsh-plugins",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Meta package: one-command installation of the dsh-upload-button and dsh-plugin-doc-reader community plugins for DeepSeek Harness.",
   "keywords": [
     "deepseek",
@@ -33,7 +33,7 @@
   "dependencies": {
     "dsh-upload-button": "^0.2.0",
     "dsh-plugin-doc-reader": "^0.1.2",
-    "dsh-plugin-manager": "^0.1.0"
+    "useful-dsh-plugin-manager": "^0.1.0"
   },
   "scripts": {
     "test": "node --test"

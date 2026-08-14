@@ -1,4 +1,4 @@
-// dsh-plugin-manager — node half (host side).
+// useful-dsh-plugin-manager — node half (host side).
 //
 // A visual plugin manager backend: HTTP routes under /api/plugin-manager that
 // (a) disable/enable ANY Loader row by writing marked entries into the active
@@ -24,7 +24,7 @@ export const name = 'plugin-manager'
 /** Services required by the node half. */
 export const inject = ['webServer']
 
-const MANAGED_MARKER = '# dsh-plugin-manager managed entry'
+const MANAGED_MARKER = '# useful-dsh-plugin-manager managed entry'
 const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i
 const DEFAULT_MAX_BODY = 64 * 1024
 const execFileAsync = promisify(execFile)
@@ -116,7 +116,7 @@ export async function resolveProfileDir(preferred) {
     try {
       const manifest = JSON.parse(await readFile(join(profilesRoot, name, 'package.json'), 'utf8'))
       const bundles = manifest?.dsh?.profile?.bundles ?? []
-      if (bundles.includes('dsh-plugin-manager') || bundles.includes('useful-dsh-plugins')) {
+      if (bundles.includes('useful-dsh-plugin-manager') || bundles.includes('useful-dsh-plugins')) {
         candidates.push(join(profilesRoot, name))
       }
     } catch {
@@ -126,7 +126,7 @@ export async function resolveProfileDir(preferred) {
   if (candidates.length === 1) return candidates[0]
   for (const candidate of candidates) {
     try {
-      await readFile(join(candidate, 'node_modules', 'dsh-plugin-manager', 'package.json'), 'utf8')
+      await readFile(join(candidate, 'node_modules', 'useful-dsh-plugin-manager', 'package.json'), 'utf8')
       return candidate
     } catch {
       // try the next candidate
@@ -294,11 +294,20 @@ export async function repairPackage(name, version) {
 
 /**
  * Build the /api/plugin-manager route handler (exported for testing).
- * @param {{ profileDir: string, maxBodyBytes: number }} options
+ * The profile directory resolves lazily on first use — an unconfigured
+ * `profileDir` (the common case) must never fail at plugin activation.
+ * @param {{ profileDir?: string, maxBodyBytes: number }} options
  */
 export function createHandler(options) {
-  const { profileDir, maxBodyBytes } = options
-  const patchFile = join(profileDir, 'cordis.patch.yml')
+  const { maxBodyBytes } = options
+  const configuredDir = options.profileDir !== undefined && options.profileDir !== '' ? options.profileDir : undefined
+
+  let dirPromise = null
+  const dir = () => {
+    if (dirPromise === null) dirPromise = resolveProfileDir(configuredDir)
+    return dirPromise
+  }
+  const patchFile = async () => join(await dir(), 'cordis.patch.yml')
 
   const json = (res, status, payload) => {
     res.writeHead(status, { 'content-type': 'application/json' })
@@ -306,7 +315,7 @@ export function createHandler(options) {
   }
 
   const readPatch = async () => {
-    const content = await readFile(patchFile, 'utf8').catch(() => '[]\n')
+    const content = await readFile(await patchFile(), 'utf8').catch(() => '[]\n')
     return content
   }
 
@@ -314,10 +323,11 @@ export function createHandler(options) {
     const before = await readPatch()
     const result = mutate(before)
     const content = result?.content ?? result
-    await mkdir(dirname(patchFile), { recursive: true })
-    const tmp = `${patchFile}.tmp`
+    const pf = await patchFile()
+    await mkdir(dirname(pf), { recursive: true })
+    const tmp = `${pf}.tmp`
     await writeFile(tmp, content, 'utf8')
-    await rename(tmp, patchFile)
+    await rename(tmp, pf)
     return result
   }
 
@@ -356,7 +366,7 @@ export function createHandler(options) {
 
       if (path === '/api/plugin-manager/state') {
         const content = await readPatch()
-        return json(res, 200, { profileDir, managed: listManaged(content) })
+        return json(res, 200, { profileDir: await dir(), managed: listManaged(content) })
       }
 
       if (path === '/api/plugin-manager/disable' && req.method === 'POST') {
@@ -379,7 +389,7 @@ export function createHandler(options) {
       }
 
       if (path === '/api/plugin-manager/check-all' && req.method === 'POST') {
-        const packages = await profilePackages(profileDir)
+        const packages = await profilePackages(await dir())
         const rows = await Promise.all(packages.map(async pkg => {
           const latest = await npmLatest(pkg.name)
           return { name: pkg.name, installed: pkg.installed, latest, upToDate: latest === null ? null : latest === pkg.installed }
@@ -394,8 +404,11 @@ export function createHandler(options) {
           return json(res, 400, { error: 'invalid package name' })
         }
         try {
-          await execFileAsync('pnpm', ['add', `${body.name}@latest`], {
-            cwd: profileDir,
+          // minimumReleaseAge=0: pnpm ≥ 11.7 otherwise skips releases younger
+          // than its supply-chain age gate — "update" must reach the newest
+          // published version deterministically.
+          await execFileAsync('pnpm', ['add', `${body.name}@latest`, '--config.minimumReleaseAge=0'], {
+            cwd: await dir(),
             shell: process.platform === 'win32',
             timeout: 300000,
             maxBuffer: 1024 * 1024,
@@ -403,7 +416,8 @@ export function createHandler(options) {
           })
           return json(res, 200, { ok: true, needsRestart: true })
         } catch (err) {
-          return json(res, 500, { ok: false, error: `update failed: ${err?.message ?? String(err)}` })
+          const detail = err?.stderr !== undefined && err.stderr !== '' ? err.stderr : err?.message ?? String(err)
+          return json(res, 500, { ok: false, error: `update failed: ${detail}` })
         }
       }
 
@@ -437,7 +451,7 @@ export function createHandler(options) {
       return json(res, 404, { error: 'unknown plugin-manager route' })
     } catch (err) {
       if (err?.status !== undefined) return json(res, err.status, { error: err.message })
-      console.error('[dsh-plugin-manager] handler error:', err)
+      console.error('[useful-dsh-plugin-manager] handler error:', err)
       return json(res, 500, { error: 'internal error' })
     }
   }
@@ -454,7 +468,7 @@ export function apply(ctx: Context, config) {
         handler: createHandler({ profileDir: dir, maxBodyBytes: config.maxBodyBytes })
       })
     } catch (err) {
-      console.error('[dsh-plugin-manager] /api/plugin-manager route registration failed:', err)
+      console.error('[useful-dsh-plugin-manager] /api/plugin-manager route registration failed:', err)
       return undefined
     }
   })

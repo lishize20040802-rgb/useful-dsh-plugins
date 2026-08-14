@@ -2,9 +2,20 @@
 
 本文件记录 useful-dsh-plugins 仓库内各插件包的用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-08-14
+
+### useful-dsh-plugins 0.2.1
+
+- 修复依赖：0.2.0 误引用了 npm 上**他人同名包** `dsh-plugin-manager`（该名字早已被社区占用）；我们的管理器正式更名为 **`useful-dsh-plugin-manager`**。0.2.0 已弃用（deprecated）。
+
+### useful-dsh-plugin-manager 0.1.1
+
+- 更新失败时返回 pnpm 的 stderr，便于诊断。
+- 「更新」强制 `--config.minimumReleaseAge=0`：绕过 pnpm ≥ 11.7 的"最小发布年龄"供应链门禁，保证真正更新到最新发布版。
+
 ## [0.2.0] - 2026-08-14
 
-### dsh-plugin-manager 0.1.0（新增）
+### useful-dsh-plugin-manager 0.1.0（新增）
 
 - 首个公开版本：Web 设置 → 插件页的「管理」标签——任意插件行启用/停用（官方用户 patch 层，重启生效）、第三方包检测更新与一键更新、**所有行（含官方包）一键修复**（registry 原始 tarball 恢复，官方包按已装 dsh 套件版本保持一致）、一键恢复全部。
 
@@ -19,7 +30,7 @@
 
 ### useful-dsh-plugins 0.2.0
 
-- 纳入 `dsh-plugin-manager`，一键安装全家桶。
+- 纳入 `useful-dsh-plugin-manager`，一键安装全家桶。
 
 ## [0.1.1] - 2026-08-13
 

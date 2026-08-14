@@ -1,4 +1,4 @@
-# `dsh-plugin-manager`
+# `useful-dsh-plugin-manager`
 
 一个 DeepSeek Harness 双面插件：**可视化插件管理器**。它在 Web 设置 → 插件页新增一个「管理」标签页，把组合树里的**每个插件条目**列出来，用按钮完成停用、启用、检测、更新、修复——全程不用命令行，小白也能自救。
 
@@ -30,7 +30,7 @@ Harness 自带的行除此之外只读展示——本插件**不修改官方安�
 ## 安装
 
 ```sh
-dsh plugin --profile web add dsh-plugin-manager
+dsh plugin --profile web add useful-dsh-plugin-manager
 # 或随全家桶一键安装：
 dsh plugin --profile web add useful-dsh-plugins
 # 重启 dsh web
@@ -45,5 +45,6 @@ dsh plugin --profile web add useful-dsh-plugins
 
 - 启用/停用需重启 `dsh web` 生效（Web 组合上游关闭了 HMR 热更新）。
 - 服务运行期间修复可能撞上 Windows 文件锁；按钮会提示，重启后再点一次即可。
-- 更新依赖 PATH 上有 `pnpm`（与官方 `dsh plugin` 的要求一致）。
+- 更新依赖 PATH 上有 `pnpm`（与官方 `dsh plugin` 的要求一致）；管理器会附带 `--config.minimumReleaseAge=0`，让 pnpm 的"最小发布年龄"供应链门禁无法拦下刚发布的新版本。
 - 列表显示的是 Loader 原始 id/模块名，友好名称直接取自模块说明符。
+- 刚发布后立即安装元包可能同样遇到该门禁，安装命令建议带参数：`dsh plugin --profile web add useful-dsh-plugins@latest --config.minimumReleaseAge=0`。

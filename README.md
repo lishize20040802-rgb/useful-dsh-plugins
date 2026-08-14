@@ -12,26 +12,29 @@ Two drop-in plugins that work together: upload a file in the chat composer, then
 |---|---|---|
 | [`dsh-upload-button`](./dsh-upload-button) | dual-face (host + browser) | A borderless 📎 button in the composer toolbar. Uploaded files appear as floating, Microsoft-classic colored cards above the input; pressing the ordinary Send button attaches their saved paths to the outgoing message automatically (native input-machine occurrence pipeline — zero send interception); message paths render as compact file cards (click to open). |
 | [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | The model-facing `read_document` tool: reads text, PDF, DOCX and XLSX files through the harness filesystem backend (`ctx.fs`), with the built-in read tool's line-window semantics. **Text only — no image recognition (OCR); scanned PDFs yield no text.** |
-| [`dsh-plugin-manager`](./dsh-plugin-manager) | dual-face (host + browser) | A visual plugin manager: a Manage tab in Web Settings → Plugins — disable/enable any plugin row, check and update out-of-tree packages, **one-click repair of every row (official packages included, restored from the registry tarball)**, and restore-all. |
+| [`useful-dsh-plugin-manager`](./useful-dsh-plugin-manager) | dual-face (host + browser) | A visual plugin manager: a Manage tab in Web Settings → Plugins — disable/enable any plugin row, check and update out-of-tree packages, **one-click repair of every row (official packages included, restored from the registry tarball)**, and restore-all. |
 
 ## Installation
 
 One command installs everything:
 
 ```sh
-dsh plugin --profile web add useful-dsh-plugins
+dsh plugin --profile web add useful-dsh-plugins@latest --config.minimumReleaseAge=0
 # restart dsh web
 ```
+
+> `@latest --config.minimumReleaseAge=0` guarantees the newest published release: pnpm ≥ 11.7's supply-chain gate otherwise skips releases that are only minutes old, so a plain `add useful-dsh-plugins` right after a release can resolve an older version. If you already have an older range installed, `add` without `@latest` keeps it.
 
 Or install the plugins individually:
 
 ```sh
-dsh plugin --profile web add dsh-upload-button
-dsh plugin --profile web add dsh-plugin-doc-reader
+dsh plugin --profile web add dsh-upload-button@latest --config.minimumReleaseAge=0
+dsh plugin --profile web add dsh-plugin-doc-reader@latest --config.minimumReleaseAge=0
+dsh plugin --profile web add useful-dsh-plugin-manager@latest --config.minimumReleaseAge=0
 # restart dsh web
 ```
 
-Both packages declare their cordis bundle patch (`dsh.bundle`), so `dsh plugin` registers them into `dsh.profile.bundles` automatically.
+All packages declare their cordis bundle patch (`dsh.bundle`), so `dsh plugin` registers them into `dsh.profile.bundles` automatically.
 
 ## Troubleshooting (broken plugins / startup failures)
 
@@ -45,7 +48,7 @@ The plugins live in `$DSH_HOME/profiles/<name>/node_modules` (default `~/.dsh/pr
 6. **Nuclear reset**: delete `$DSH_HOME/profiles/web` entirely; the next `dsh web` rebuilds the default template (clears all plugins and custom config for that profile).
 7. **Restart `dsh web`** after every change.
 
-A graphical alternative (enable/disable, version check, one-click update in Settings → Plugins) is planned as `dsh-plugin-manager`.
+A graphical alternative (enable/disable, version check, one-click update in Settings → Plugins) is planned as `useful-dsh-plugin-manager`.
 
 ## Requirements
 

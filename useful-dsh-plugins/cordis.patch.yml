@@ -10,4 +10,4 @@
       name: 'dsh-plugin-doc-reader'
 
     - id: plugin-manager
-      name: 'dsh-plugin-manager'
+      name: 'useful-dsh-plugin-manager'
