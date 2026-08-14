@@ -4,7 +4,7 @@ import { Readable } from 'node:stream'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createUploadHandler, sanitizeFileName } from '../lib/index.js'
+import { createUploadHandler, sanitizeFileName, apply } from '../lib/index.js'
 
 function makeReq(body, headers = {}, method = 'POST', url = undefined) {
   const req = Readable.from(body === null ? [] : [Buffer.from(body)])
@@ -144,4 +144,17 @@ test('delete reports missing files as 404', async () => {
   const handler = createUploadHandler({ dir, maxBytes: 1024 })
   const res = await send(makeReq(null, {}, 'DELETE', `/api/upload?path=${encodeURIComponent(join(dir, 'nope.bin'))}`), handler)
   assert.equal(res.status, 404)
+})
+
+test('apply survives a duplicate-route registration conflict', () => {
+  const ctx = {
+    effect: (fn) => {
+      fn()
+      return () => {}
+    },
+    webServer: {
+      register: () => { throw new Error('webserver: duplicate prefix route "/api/upload"') }
+    }
+  }
+  assert.doesNotThrow(() => apply(ctx, { maxBytes: 1024, uploadDir: '.', allowedExtensions: undefined }))
 })

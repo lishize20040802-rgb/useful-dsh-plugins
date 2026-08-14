@@ -1,15 +1,15 @@
 {
-  "name": "dsh-upload-button",
-  "version": "0.2.0",
-  "description": "DeepSeek Harness dual-face plugin: a borderless file upload button in the composer toolbar with floating colored file cards; uploaded files attach to the outgoing message automatically.",
+  "name": "dsh-plugin-manager",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness dual-face plugin: a visual plugin manager tab in Web Settings — enable/disable any plugin row, check installed plugins against the npm registry, and update them to the latest published version.",
   "keywords": [
     "deepseek",
     "harness",
     "dsh",
     "cordis",
     "plugin",
-    "upload",
-    "attachment"
+    "manager",
+    "update"
   ],
   "type": "module",
   "main": "lib/index.js",
@@ -28,13 +28,11 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lishize20040802-rgb/useful-dsh-plugins.git",
-    "directory": "dsh-upload-button"
+    "directory": "dsh-plugin-manager"
   },
   "dsh": {
     "client": {
-      "inject": [
-        "@deepseek-ai/dsh-client-runtime"
-      ],
+      "inject": [],
       "platform": "web"
     },
     "bundle": {
@@ -42,8 +40,9 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "*",
-    "@deepseek-ai/schemastery": "*",
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "@deepseek-ai/dsh-home-paths": "^0.1.0-rc.6",
     "react": "^18.2.0"
   },
   "devDependencies": {

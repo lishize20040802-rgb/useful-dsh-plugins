@@ -87,3 +87,15 @@ test('execute validates arguments', async () => {
   // so accept either message wording.
   await assert.rejects(() => tool.execute({ file_path: 'x', format: 'doc' }, {}), /invalid arguments|unsupported format/)
 })
+
+test('apply survives a tool-registration conflict', () => {
+  const ctx = {
+    tools: { register: () => { throw new Error('tool "read_document" is already registered') } },
+    systemPrompt: { section: () => {} },
+    fs: {},
+    emit() {},
+    inject() {},
+    get() {}
+  }
+  assert.doesNotThrow(() => apply(ctx, CONFIG))
+})

@@ -19,7 +19,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Tooltip, IconPaperclipOutline16, IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** Browser cordis services this client plugin needs. */
-export const inject = ['slots', 'sessions', 'inputTriggers']
+export const inject = ['slots', 'sessions', 'inputTriggers', 'workspaces']
 
 const PLUGIN_ID = 'dsh-upload-button'
 const STYLE_TAG = 'dsh-upload-button/style.css'
@@ -81,6 +81,35 @@ function nameFromPath(path: string): string {
   return base === '' ? path : base
 }
 
+/** Our content-addressed upload path signature: `<dir>...<12-hex>-<name>`. */
+const UPLOAD_PATH_RE = /^[A-Za-z]:[\\/].+[\\/][0-9a-f]{12}-[^\\/]+$/
+
+/**
+ * The chat markdown renderer asks this provider (the official
+ * `chatFileMentions` seat) to resolve inline-code tokens: a token matching an
+ * upload path renders as a compact file mention (filename label, click opens
+ * the file) instead of a long path string — the renderer never guesses paths
+ * on its own; only tokens this provider accepts become file cards.
+ * @param ctx - the plugin apply context (used lazily for the open action)
+ */
+function fileMentionsProvider(ctx: any) {
+  const resolve = (value: string) => {
+    if (!UPLOAD_PATH_RE.test(value)) return undefined
+    return {
+      label: nameFromPath(value).replace(/^[0-9a-f]{12}-/, ''),
+      title: value,
+      open: () => {
+        const workspaces = ctx.get('workspaces')
+        if (workspaces === undefined) return
+        void workspaces.openPath(value).catch(() => {})
+      }
+    }
+  }
+  return {
+    forClosing: () => ({ resolve })
+  }
+}
+
 /** Idempotent style injection, mirroring the official data-plugin pattern. */
 function injectCss() {
   if (typeof document === 'undefined') return
@@ -115,15 +144,16 @@ function injectCss() {
 }
 
 /**
- * Upload one browser File and insert its occurrence token at the end of the
- * session's draft via the official scoped input event (draftRev CAS). The
- * token carries an empty label — occurrences exist only to route the saved
- * path into the outgoing message at submit time, never as a draft visual;
- * the floating card above the composer is the sole display surface.
+ * Upload one browser File and attach it to the session's outgoing message.
+ * Primary path: insert an occurrence token (native pipeline — cards render
+ * above the composer and Send serializes the path automatically). Degraded
+ * path (source registration conflicted): append the plain path to the draft,
+ * so uploads keep working with reduced polish instead of failing.
  * @param actx - the session scope context (from `ctx.sessions.scope(sessionId)`)
  * @param file - the picked browser file
+ * @param degraded - true when the input-trigger source could not register
  */
-async function attachFile(actx: any, file: File): Promise<void> {
+async function attachFile(actx: any, file: File, degraded: boolean): Promise<void> {
   const conversation = actx.get('conversation')
   if (conversation === undefined) throw new Error('conversation service unavailable')
   const input = conversation.input.for(actx)
@@ -139,6 +169,14 @@ async function attachFile(actx: any, file: File): Promise<void> {
     const name = payload.name ?? file.name
     uploadMeta.set(payload.path, { name, bytes: payload.bytes ?? file.size })
     clearUploadError()
+
+    if (degraded) {
+      const state = input.state.getSnapshot()
+      const token = `\`${payload.path}\``
+      const next = state.draft.trim() === '' ? token : `${state.draft}\n${token}`
+      input.setDraft(next)
+      return
+    }
 
     const state = input.state.getSnapshot()
     actx.emit('slash/input-insert-reference', {
@@ -288,29 +326,57 @@ function UploadDock({ useInput, inputActions }: UploadDockProps) {
 export function apply(ctx: any) {
   injectCss()
 
-  // The source's codec turns each occurrence token back into its upload path
-  // at submit time; zero candidates means no menu-group clutter.
-  ctx.effect(() => ctx.inputTriggers.registerSource({
-    trigger: '@',
-    name: SOURCE_NAME,
-    candidates: async () => [],
-    onPick: () => undefined,
-    codec: {
-      clipboardText: (ref: string) => ref,
-      serialize: async (ref: string) => ref
-    }
-  }))
+  // File mentions in chat: the message renderer turns our inline-code path
+  // tokens into compact file cards (filename + click-to-open). Optional
+  // service — a conflict never crashes the plugin.
+  try {
+    ctx.provide('chatFileMentions', fileMentionsProvider(ctx))
+  } catch (err) {
+    console.warn('[dsh-upload-button] chatFileMentions service registration failed; paths will render as plain text:', err)
+  }
 
-  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
+  // A source-name conflict must never crash the browser plugin: degrade to
+  // plain draft-text attachment instead (uploads keep working, cards don't).
+  let degraded = false
+  try {
+    ctx.effect(() => ctx.inputTriggers.registerSource({
+      trigger: '@',
+      name: SOURCE_NAME,
+      candidates: async () => [],
+      onPick: () => undefined,
+      codec: {
+        clipboardText: (ref: string) => ref,
+        // Inline-code form: the chat renderer resolves it via the
+        // chatFileMentions provider above into a compact file mention,
+        // while the agent still receives the path verbatim.
+        serialize: async (ref: string) => `\`${ref}\``
+      }
+    }))
+  } catch (err) {
+    degraded = true
+    console.warn('[dsh-upload-button] input-trigger source registration failed; falling back to draft-text attachment:', err)
+  }
+
+  // Slot conflicts (duplicate cell ids) also degrade instead of crashing.
+  const registerSlot = (slot: string, options: object, component: any) => {
+    try {
+      return ctx.slots.register(options, component)
+    } catch (err) {
+      console.warn(`[dsh-upload-button] slot "${slot}" registration failed; that UI seat stays absent:`, err)
+      return undefined
+    }
+  }
+
+  ctx.slots.inject('conversation.input.left', () => registerSlot('conversation.input.left', {
     name: 'conversation.input.left',
     id: 'upload-file-button',
     order: 0,
     inject: (sessionId: string) => ({
-      attach: (file: File) => attachFile(ctx.sessions.scope(sessionId), file)
+      attach: (file: File) => attachFile(ctx.sessions.scope(sessionId), file, degraded)
     })
   }, UploadButton))
 
-  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+  ctx.slots.inject('conversation.input.dock', () => registerSlot('conversation.input.dock', {
     name: 'conversation.input.dock',
     id: 'upload-file-dock',
     order: 5

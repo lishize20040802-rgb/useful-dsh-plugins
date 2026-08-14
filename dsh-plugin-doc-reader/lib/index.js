@@ -70,6 +70,17 @@ export function apply(ctx, config) {
     text: 'Use the read_document tool to read PDF, DOCX and XLSX documents that the plain read tool cannot handle; it also reads plain text files. Use offset and limit to page through long documents.'
   })
 
+  // A tool-name conflict (another plugin registered `read_document` first)
+  // must never crash the host composition: degrade to "tool unavailable"
+  // with a loud, diagnosable warning instead.
+  try {
+    registerTool(ctx, config)
+  } catch (err) {
+    console.error('[dsh-plugin-doc-reader] read_document tool registration failed (name conflict with another plugin?); the tool will be unavailable:', err)
+  }
+}
+
+function registerTool(ctx, config) {
   ctx.tools.register(defineTool({
     name: 'read_document',
     description: 'Read a document file (text, PDF, DOCX or XLSX) and return its content as line-numbered pages.',

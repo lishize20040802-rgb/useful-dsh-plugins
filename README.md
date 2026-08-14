@@ -10,8 +10,9 @@ Two drop-in plugins that work together: upload a file in the chat composer, then
 
 | Package | Type | What it does |
 |---|---|---|
-| [`dsh-upload-button`](./dsh-upload-button) | dual-face (host + browser) | A borderless 📎 button in the composer toolbar. Uploaded files appear as floating, Microsoft-classic colored cards above the input; pressing the ordinary Send button attaches their saved paths to the outgoing message automatically (native input-machine occurrence pipeline — zero send interception). |
+| [`dsh-upload-button`](./dsh-upload-button) | dual-face (host + browser) | A borderless 📎 button in the composer toolbar. Uploaded files appear as floating, Microsoft-classic colored cards above the input; pressing the ordinary Send button attaches their saved paths to the outgoing message automatically (native input-machine occurrence pipeline — zero send interception); message paths render as compact file cards (click to open). |
 | [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | The model-facing `read_document` tool: reads text, PDF, DOCX and XLSX files through the harness filesystem backend (`ctx.fs`), with the built-in read tool's line-window semantics. **Text only — no image recognition (OCR); scanned PDFs yield no text.** |
+| [`dsh-plugin-manager`](./dsh-plugin-manager) | dual-face (host + browser) | A visual plugin manager: a Manage tab in Web Settings → Plugins — disable/enable any plugin row, check and update out-of-tree packages, **one-click repair of every row (official packages included, restored from the registry tarball)**, and restore-all. |
 
 ## Installation
 
@@ -31,6 +32,20 @@ dsh plugin --profile web add dsh-plugin-doc-reader
 ```
 
 Both packages declare their cordis bundle patch (`dsh.bundle`), so `dsh plugin` registers them into `dsh.profile.bundles` automatically.
+
+## Troubleshooting (broken plugins / startup failures)
+
+The plugins live in `$DSH_HOME/profiles/<name>/node_modules` (default `~/.dsh/profiles/web`). If a **locally modified plugin crashes** or a conflict prevents startup, work through these steps:
+
+1. **Diagnose**: `dsh --profile web --dump-config` prints the composed tree; failing rows are marked.
+2. **Uninstall**: `dsh plugin --profile web remove useful-dsh-plugins` (or the offending package name) — this also clears its bundle registration.
+3. **Reinstall the published version**: `dsh plugin --profile web add useful-dsh-plugins` restores the npm release.
+4. **Force-restore corrupted files**: `dsh plugin --profile web add useful-dsh-plugins --force` (re-links files from the pnpm store, ignoring local edits).
+5. **Pin an older version**: `dsh plugin --profile web add useful-dsh-plugins@0.1.0`.
+6. **Nuclear reset**: delete `$DSH_HOME/profiles/web` entirely; the next `dsh web` rebuilds the default template (clears all plugins and custom config for that profile).
+7. **Restart `dsh web`** after every change.
+
+A graphical alternative (enable/disable, version check, one-click update in Settings → Plugins) is planned as `dsh-plugin-manager`.
 
 ## Requirements
 

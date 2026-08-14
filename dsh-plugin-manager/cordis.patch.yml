@@ -1,0 +1,4 @@
+# dsh-plugin-manager bundle patch: one insert registering the visual manager.
+- insert:
+    - id: plugin-manager
+      name: 'dsh-plugin-manager'

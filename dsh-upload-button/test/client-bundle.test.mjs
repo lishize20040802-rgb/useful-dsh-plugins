@@ -29,6 +29,8 @@ test('client bundle is a ModuleLoader factory envelope', () => {
   assert.ok(src.includes('useSyncExternalStore'), 'error banner subscription must survive bundling')
   assert.ok(src.includes('uV2eYG_chip'), 'draft-token hiding rule must survive bundling')
   assert.ok(src.includes('--dsh-composer-dock-inset'), 'official dock alignment formula must survive bundling')
+  assert.ok(src.includes('chatFileMentions'), 'chat file-mention provider must survive bundling')
+  assert.ok(src.includes('openPath'), 'file open action must survive bundling')
   assert.ok(src.includes('/api/upload'), 'upload fetch must survive bundling')
   assert.ok(!src.includes('node_modules'), 'no bundler internals leaked')
 })

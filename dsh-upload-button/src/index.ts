@@ -178,9 +178,19 @@ export function apply(ctx: Context, config) {
     throw new Error('upload-button: maxBytes must be a positive integer')
   }
   const dir = config.uploadDir ?? join(process.cwd(), 'uploads')
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'prefix',
-    path: '/api/upload',
-    handler: createUploadHandler({ dir, maxBytes: config.maxBytes, allowedExtensions: config.allowedExtensions })
-  }))
+  // A route conflict (another plugin already owns /api/upload) must never
+  // crash the host composition: degrade gracefully — the plugin stays
+  // active and uploads simply report an HTTP error the user can read.
+  ctx.effect(() => {
+    try {
+      return ctx.webServer.register({
+        kind: 'prefix',
+        path: '/api/upload',
+        handler: createUploadHandler({ dir, maxBytes: config.maxBytes, allowedExtensions: config.allowedExtensions })
+      })
+    } catch (err) {
+      console.error('[dsh-upload-button] /api/upload route registration failed (another plugin may own it); uploads will fail with a clear error:', err)
+      return undefined
+    }
+  })
 }

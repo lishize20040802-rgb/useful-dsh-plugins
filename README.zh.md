@@ -8,8 +8,9 @@
 
 | 包 | 类型 | 功能 |
 |---|---|---|
-| [`dsh-upload-button`](./dsh-upload-button) | 双面（host + browser） | 输入框工具栏的无边框 📎 按钮。上传的文件以浮在输入框上方的微软经典配色竖版卡片呈现；按原有「发送」键即自动把文件路径附入消息（原生输入机 occurrence 管线，零发送拦截）。 |
+| [`dsh-upload-button`](./dsh-upload-button) | 双面（host + browser） | 输入框工具栏的无边框 📎 按钮。上传的文件以浮在输入框上方的微软经典配色竖版卡片呈现；按原有「发送」键即自动把文件路径附入消息（原生输入机 occurrence 管线，零发送拦截）；消息里的路径渲染为紧凑文件卡片（点击打开文件）。 |
 | [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | 模型可用的 `read_document` 工具：经由 Harness 文件系统后端（`ctx.fs`）读取文本、PDF、DOCX 和 XLSX 文件，具备与内置 read 工具一致的行窗口分页语义。**仅限文字，不支持识图（OCR）——扫描版 PDF 提取不到文字。** |
+| [`dsh-plugin-manager`](./dsh-plugin-manager) | 双面（host + browser） | 可视化插件管理器：Web 设置 → 插件页新增「管理」标签——任意插件行停用/启用、第三方包检测更新与一键更新、**所有行（含官方包）一键修复**（恢复 registry 官方原件）、一键恢复全部。 |
 
 ## 安装
 
@@ -29,6 +30,20 @@ dsh plugin --profile web add dsh-plugin-doc-reader
 ```
 
 两个包都声明了自己的 cordis bundle patch（`dsh.bundle`），`dsh plugin` 会自动把它们登记进 `dsh.profile.bundles`。
+
+## 故障恢复手册（插件被改坏 / 启动报错怎么办）
+
+插件本体安装在 `$DSH_HOME/profiles/<name>/node_modules`（Windows 默认 `C:\Users\<你>\.dsh\profiles\web`）。如果**自己修改插件文件导致崩溃**，或与其他插件冲突导致启动失败，按以下顺序处理：
+
+1. **看诊断**：`dsh --profile web --dump-config` 打印组合树，报错行会标明是哪个插件行失败。
+2. **卸载**：`dsh plugin --profile web remove useful-dsh-plugins`（或出问题的那个包名）——这会同时清掉 bundles 登记。
+3. **重装官方版**：`dsh plugin --profile web add useful-dsh-plugins`，恢复 npm 上的公开版本。
+4. **文件也被改坏时强制恢复**：`dsh plugin --profile web add useful-dsh-plugins --force`（从 pnpm 存储重新铺文件，无视本地改动）。
+5. **锁历史版本**：`dsh plugin --profile web add useful-dsh-plugins@0.1.0`（换成你要的版本号）。
+6. **终极重置**：删除整个 `$DSH_HOME/profiles/web` 目录，下次 `dsh web` 会用官方模板自动重建（会清掉该 profile 下所有插件与自定义配置）。
+7. 每次改动后**重启 `dsh web`** 生效。
+
+图形化替代方案：安装 `dsh-plugin-manager`（计划中）后在 Settings → Plugins 里点按钮完成启用/停用、检测与公开版差异、一键更新。
 
 ## 环境要求
 
