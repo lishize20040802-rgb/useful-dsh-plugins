@@ -186,14 +186,64 @@ export async function profilePackages(profileDir) {
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Latest published version for one package, or null when unreachable. */
+/**
+ * Installed versions of the official harness rows (`@deepseek-ai/*`), read
+ * from the installation the host composition actually loads them from — never
+ * from a hoisted peer copy inside a profile. Official rows deserve the same
+ * version check as out-of-tree plugins: the harness itself can be outdated.
+ * `resolveDir` is injectable for tests; packages not shipped with the
+ * installation are skipped.
+ * @returns { name, installed, official } rows.
+ */
+export async function officialPackages(names, resolveDir = installedPackageDir) {
+  const rows = []
+  const seen = new Set()
+  for (const name of names) {
+    if (typeof name !== 'string' || !name.startsWith('@deepseek-ai/') || name.includes('..')) continue
+    if (seen.has(name)) continue
+    seen.add(name)
+    try {
+      const version = await readPkgVersion(await resolveDir(name))
+      if (version !== undefined) rows.push({ name, installed: version, official: true })
+    } catch {
+      // not shipped with this installation
+    }
+  }
+  return rows
+}
+
+/**
+ * Newest PUBLISHED version for one package, or null when unreachable. The
+ * registry's `latest` dist-tag is unreliable for rc-style suites (it can
+ * point at an older line than the installed one), so the honest "latest" is
+ * the version with the newest publish timestamp from the full packument.
+ */
 export async function npmLatest(name) {
   try {
-    const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, {
+    const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
       signal: AbortSignal.timeout(15000)
     })
     if (!res.ok) return null
     const json = await res.json()
+    const times = json?.time
+    if (times !== null && typeof times === 'object') {
+      let newest = null
+      let newestAt = 0
+      for (const version of Object.keys(times)) {
+        if (version === 'created' || version === 'modified') continue
+        const at = Date.parse(times[version])
+        if (!Number.isNaN(at) && at > newestAt) {
+          newestAt = at
+          newest = version
+        }
+      }
+      if (newest !== null) return newest
+    }
+    const versions = json?.versions
+    if (versions !== null && typeof versions === 'object') {
+      const list = Object.keys(versions)
+      if (list.length > 0) return list[list.length - 1]
+    }
     return typeof json?.version === 'string' ? json.version : null
   } catch {
     return null
@@ -220,17 +270,35 @@ export async function npmMetadata(name, version) {
 const requireFromHere = createRequire(import.meta.url)
 
 /**
- * Locate the on-disk directory of an installed package. Primary path: Node
- * resolution from this module (works for profile-installed third-party
- * packages). Fallback: the harness fallback directory
+ * A require anchored at the harness's own entry point (the dsh bin), which is
+ * how the HOST composition resolves official `@deepseek-ai/*` rows. Falls back
+ * to resolution from this module when the entry point is unavailable.
+ */
+function harnessRequire() {
+  try {
+    if (typeof process.argv?.[1] === 'string' && process.argv[1] !== '') return createRequire(process.argv[1])
+  } catch {
+    // fall through
+  }
+  return requireFromHere
+}
+
+/**
+ * Locate the on-disk directory of an installed package. Official rows resolve
+ * from the harness installation itself (authoritative — never a hoisted peer
+ * copy inside a profile); third-party rows resolve from this module (the
+ * profile install). Final fallback: the harness fallback directory
  * `$DSH_HOME/profiles/node_modules`, whose junction/symlink targets point at
- * the harness installation's packages (official rows).
+ * the harness installation's packages.
  */
 export async function installedPackageDir(name) {
-  try {
-    return dirname(requireFromHere.resolve(`${name}/package.json`))
-  } catch {
-    // fall through to the fallback-dir junction walk
+  const tries = name.startsWith('@deepseek-ai/') ? [harnessRequire(), requireFromHere] : [requireFromHere, harnessRequire()]
+  for (const require of tries) {
+    try {
+      return dirname(require.resolve(`${name}/package.json`))
+    } catch {
+      // try the next anchor
+    }
   }
   const fallback = join(resolveDshHome(), 'profiles', 'node_modules')
   const scope = name.startsWith('@') ? name.slice(0, name.indexOf('/')) : undefined
@@ -317,7 +385,7 @@ export async function repairPackage(name, version) {
  * @param {{ profileDir?: string, maxBodyBytes: number }} options
  */
 export function createHandler(options) {
-  const { maxBodyBytes } = options
+  const { maxBodyBytes, listOfficialModules, resolvePackageDir } = options
   const configuredDir = options.profileDir !== undefined && options.profileDir !== '' ? options.profileDir : undefined
 
   let dirPromise = null
@@ -407,11 +475,29 @@ export function createHandler(options) {
       }
 
       if (path === '/api/plugin-manager/check-all' && req.method === 'POST') {
-        const packages = await profilePackages(await dir())
+        const officialNames = async () => {
+          const names = typeof listOfficialModules === 'function' ? await listOfficialModules() : []
+          return Array.isArray(names) ? names : []
+        }
+        const [profile, official] = await Promise.all([
+          profilePackages(await dir()),
+          officialPackages(await officialNames(), typeof resolvePackageDir === 'function' ? resolvePackageDir : installedPackageDir)
+        ])
+        // Official rows win over any same-named hoisted peer copy: the
+        // version that matters is the one the harness actually loaded.
+        const seen = new Set(official.map(pkg => pkg.name))
+        const packages = [...official, ...profile.filter(pkg => !seen.has(pkg.name))]
         const rows = await Promise.all(packages.map(async pkg => {
           const latest = await npmLatest(pkg.name)
-          return { name: pkg.name, installed: pkg.installed, latest, upToDate: latest === null ? null : latest === pkg.installed }
+          return {
+            name: pkg.name,
+            installed: pkg.installed,
+            latest,
+            upToDate: latest === null ? null : latest === pkg.installed,
+            ...(pkg.official === true ? { official: true } : {})
+          }
         }))
+        rows.sort((a, b) => a.name.localeCompare(b.name))
         return json(res, 200, { packages: rows })
       }
 
@@ -442,6 +528,24 @@ export function createHandler(options) {
         } catch (err) {
           const detail = err?.stderr !== undefined && err.stderr !== '' ? err.stderr : err?.message ?? String(err)
           return json(res, 500, { ok: false, error: `update failed: ${detail}` })
+        }
+      }
+
+      if (path === '/api/plugin-manager/update-harness' && req.method === 'POST') {
+        try {
+          // The official install path is a global npm install. Update the
+          // suite as a WHOLE — individual @deepseek-ai/* packages must stay
+          // version-aligned with each other.
+          await execFileAsync('npm', ['install', '-g', '@deepseek-ai/dsh@latest'], {
+            shell: process.platform === 'win32',
+            timeout: 600000,
+            maxBuffer: 2 * 1024 * 1024,
+            windowsHide: true
+          })
+          return json(res, 200, { ok: true, needsRestart: true })
+        } catch (err) {
+          const detail = err?.stderr !== undefined && err.stderr !== '' ? err.stderr : err?.message ?? String(err)
+          return json(res, 500, { ok: false, error: `harness update failed: ${detail}` })
         }
       }
 
@@ -483,13 +587,27 @@ export function createHandler(options) {
 
 export function apply(ctx: Context, config) {
   const dir = config.profileDir ?? undefined
+  /** Official harness row module names, straight from the Loader (the same
+   *  source the official plugin inventory reads). */
+  const listOfficialModules = () => {
+    try {
+      const names = []
+      for (const entry of ctx.get('loader').entries()) {
+        if (entry.options.group) continue
+        if (typeof entry.options.name === 'string' && entry.options.name.startsWith('@deepseek-ai/')) names.push(entry.options.name)
+      }
+      return names
+    } catch {
+      return []
+    }
+  }
   ctx.effect(() => {
     // Route conflicts must never crash the host composition (community rule).
     try {
       return ctx.webServer.register({
         kind: 'prefix',
         path: '/api/plugin-manager',
-        handler: createHandler({ profileDir: dir, maxBodyBytes: config.maxBodyBytes })
+        handler: createHandler({ profileDir: dir, maxBodyBytes: config.maxBodyBytes, listOfficialModules })
       })
     } catch (err) {
       console.error('[useful-dsh-plugin-manager] /api/plugin-manager route registration failed:', err)

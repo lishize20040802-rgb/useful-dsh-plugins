@@ -116,6 +116,41 @@ test('check-all reports installed vs registry latest', async () => {
   }
 })
 
+test('check-all covers official rows; the harness-loaded copy beats hoisted peers', async () => {
+  const dir = freshProfile()
+  const harness = mkdtempSync(join(tmpdir(), 'dsh-manager-harness-'))
+  mkdirSync(join(harness, '@deepseek-ai', 'dsh-base'), { recursive: true })
+  writeFileSync(join(harness, '@deepseek-ai', 'dsh-base', 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-base', version: '0.1.0-rc.6' }))
+  // A stale hoisted peer copy inside the profile must lose to the harness copy.
+  mkdirSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-base'), { recursive: true })
+  writeFileSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh-base', 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh-base', version: '0.1.0-rc.5' }))
+
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    json: async () => ({ version: String(url).includes('dsh-base') ? '0.1.0-rc.7' : '2.0.0' })
+  })
+  try {
+    const handler = createHandler({
+      profileDir: dir,
+      maxBodyBytes: 1024,
+      listOfficialModules: async () => ['@deepseek-ai/dsh-base'],
+      resolvePackageDir: async name => join(harness, name)
+    })
+    const res = await send(makeReq(undefined, 'POST', '/api/plugin-manager/check-all'), handler)
+    assert.equal(res.status, 200)
+    const { packages } = JSON.parse(res.body)
+    const rows = packages.filter(p => p.name === '@deepseek-ai/dsh-base')
+    assert.equal(rows.length, 1, 'official rows dedupe their hoisted peer twin')
+    assert.equal(rows[0].installed, '0.1.0-rc.6', 'the harness-loaded copy wins')
+    assert.equal(rows[0].latest, '0.1.0-rc.7')
+    assert.equal(rows[0].upToDate, false)
+    assert.equal(rows[0].official, true)
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})
+
 test('apply survives a duplicate-route registration conflict', async () => {
   const ctx = {
     effect: (fn) => {

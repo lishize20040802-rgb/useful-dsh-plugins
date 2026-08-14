@@ -30,6 +30,7 @@ const zh = {
   check: '检测更新',
   checkAll: '全部检测',
   updating: '更新',
+  updateHarness: '更新 Harness',
   repair: '修复',
   repaired: '已恢复原版文件，重启 dsh web 生效。',
   repairFailed: '修复失败：',
@@ -55,6 +56,7 @@ const en = {
   check: 'Check',
   checkAll: 'Check all',
   updating: 'Update',
+  updateHarness: 'Update Harness',
   repair: 'Repair',
   repaired: 'Pristine files restored — restart dsh web to apply.',
   repairFailed: 'Repair failed: ',
@@ -203,6 +205,19 @@ function ManageTab({ list, t }: TabProps) {
     }
   }
 
+  /** Official rows are version-aligned as a suite: update the whole harness. */
+  const updateHarness = async () => {
+    setBusy('__harness__')
+    try {
+      await call('/update-harness', {})
+      setBanner(tt('restarting'))
+    } catch (err) {
+      setBanner(`harness update failed: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const repairOne = async (name: string) => {
     setBusy(`__repair__${name}`)
     try {
@@ -257,6 +272,25 @@ function ManageTab({ list, t }: TabProps) {
             {official
               ? <>
                 <span className="dsh-pm-tag">{tt('official')}</span>
+                {check !== undefined && (
+                  <span className={`dsh-pm-status ${check.upToDate === true ? 'dsh-pm-ok' : 'dsh-pm-warn'}`}>
+                    {check.upToDate === true
+                      ? <><IconCheckOutline16 size={12} /> {tt('uptodate')}</>
+                      : check.latest === null
+                        ? tt('unreachable')
+                        : `${tt('outdated')}: ${check.latest}`}
+                  </span>
+                )}
+                {check !== undefined && check.upToDate === false && (
+                  <button
+                    type="button"
+                    className="dsh-pm-btn"
+                    disabled={busy === '__harness__'}
+                    onClick={() => void updateHarness()}
+                  >
+                    {busy === '__harness__' ? '…' : tt('updateHarness')}
+                  </button>
+                )}
                 {moduleName !== undefined && (
                   <button
                     type="button"
@@ -282,7 +316,7 @@ function ManageTab({ list, t }: TabProps) {
                 {check !== undefined && (
                   <span className={`dsh-pm-status ${check.upToDate === true ? 'dsh-pm-ok' : check.latest === null ? 'dsh-pm-warn' : 'dsh-pm-warn'}`}>
                     {check.upToDate === true
-                      ? <IconCheckOutline16 size={12} />
+                      ? <><IconCheckOutline16 size={12} /> {tt('uptodate')}</>
                       : check.latest === null
                         ? tt('unreachable')
                         : `${tt('outdated')}: ${check.latest}`}
