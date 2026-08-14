@@ -293,20 +293,39 @@ function ManageTab({ list, t }: TabProps) {
                     {busy === moduleName ? '…' : tt('updating')}
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="dsh-pm-btn"
-                  disabled={busy === id}
-                  onClick={() => void setEnable(id, disabled)}
-                >
-                  {busy === id ? '…' : disabled ? tt('enable') : tt('disable')}
-                </button>
+                {entry.id !== undefined && (
+                  <button
+                    type="button"
+                    className="dsh-pm-btn"
+                    disabled={busy === id}
+                    onClick={() => void setEnable(id, disabled)}
+                  >
+                    {busy === id ? '…' : disabled ? tt('enable') : tt('disable')}
+                  </button>
+                )}
               </>}
           </div>
         )
       })}
     </div>
   )
+}
+
+/** Normalize the Host inventory face to the manager's row shape. The current
+ *  pluginInventory.list() returns `{ entries: [{ entryId, moduleName, enabled,
+ *  fiberPhase }] }`; older harness generations returned a bare array of
+ *  `{ id, module, … }` — accept both so one bundle serves every deployment. */
+function normalizeInventory(value: unknown): InventoryEntry[] {
+  const raw = Array.isArray(value) ? value : Array.isArray((value as { entries?: unknown[] })?.entries) ? (value as { entries: unknown[] }).entries : []
+  return raw.map((entry) => {
+    const e = (entry ?? {}) as Record<string, unknown>
+    return {
+      id: typeof e.entryId === 'string' ? e.entryId : typeof e.id === 'string' ? e.id : undefined,
+      module: typeof e.moduleName === 'string' ? e.moduleName : typeof e.module === 'string' ? e.module : undefined,
+      enabled: typeof e.enabled === 'boolean' ? e.enabled : undefined,
+      phase: typeof e.fiberPhase === 'string' ? e.fiberPhase : typeof e.phase === 'string' ? e.phase : null
+    }
+  })
 }
 
 export function apply(ctx: any) {
@@ -316,7 +335,7 @@ export function apply(ctx: any) {
   const list = async () => {
     const result = await ctx.remote.pluginInventory.list()
     if (!result.ok) throw new Error(`pluginInventory.list failed: ${result.error.code}: ${result.error.message}`)
-    return result.value
+    return normalizeInventory(result.value)
   }
   try {
     ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
