@@ -2,7 +2,14 @@
 
 本文件记录 useful-dsh-plugins 仓库内各插件包的用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
-## [0.2.1] - 2026-08-14
+## [0.2.2] - 2026-08-14
+
+### useful-dsh-plugin-manager 0.2.0
+
+- **官方自带插件同样参与检测**：`check-all` 现在覆盖全部 `@deepseek-ai/*` 官方行——已装版本从 harness 自身安装读取（不误用 profile 里的提升副本），最新版按 packument 的最晚发布时间判定（rc 系列的 `latest` dist-tag 会漂移，按 dist-tag 会把已装新版误判为过期）。与最新一致显示绿色对勾 ✓。
+- **官方行过期可一键更新**：新增「更新 Harness」按钮 → `npm install -g @deepseek-ai/dsh@latest`（套件整体更新，保持版本对齐），重启生效。
+- **修复**：`check-all`/`restore` 客户端此前用 GET 调用 POST-only 路由，导致「全部检测」404、逐行「更新」按钮永不出现；`pluginInventory.list()` 新返回形状（`{entries:[{entryId,moduleName,…}]}`）未适配导致「管理」标签页空白；均已修复，并同时兼容新旧形状。
+- **健壮性**：更新透传 profile 的 pnpm `storeDir`（非默认 store 不再报 `ERR_PNPM_UNEXPECTED_STORE`）；官方行模块名去重。
 
 ### useful-dsh-plugins 0.2.1
 

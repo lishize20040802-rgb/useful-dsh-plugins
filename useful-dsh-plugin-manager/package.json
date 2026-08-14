@@ -1,11 +1,12 @@
 {
   "name": "useful-dsh-plugin-manager",
-  "version": "0.1.1",
-  "description": "DeepSeek Harness dual-face plugin: a visual plugin manager tab in Web Settings — enable/disable any plugin row, check installed plugins against the npm registry, and update them to the latest published version.",
+  "version": "0.2.0",
+  "description": "DeepSeek Harness dual-face plugin: a visual plugin manager tab in Web Settings — enable/disable any plugin row, check installed plugins (including official @deepseek-ai/* rows) against the npm registry, update them, repair pristine files, and update the harness suite itself.",
   "keywords": [
     "deepseek",
     "harness",
     "dsh",
+    "dsh-plugin",
     "cordis",
     "plugin",
     "manager",

@@ -2,7 +2,7 @@
 
 [中文说明](./README.zh.md)
 
-A DeepSeek Harness dual-face plugin: a visual plugin manager. It adds a **管理 (Manage)** tab to Web Settings → Plugins where every Loader entry is listed and can be fixed or managed with buttons — no command line required.
+A DeepSeek Harness dual-face plugin: a visual plugin manager. It adds a **管理 (Manage)** tab to Web Settings → Plugins where every Loader entry is listed and can be checked, updated or fixed with buttons — no command line required.
 
 ## What it does
 
@@ -11,12 +11,13 @@ Per plugin row (every entry of the composed Loader tree, via the official `plugi
 | Action | Availability | What happens |
 |---|---|---|
 | **停用/启用** (disable/enable) | out-of-tree plugins | Writes a marked `disabled: true` entry into the active profile's `cordis.patch.yml` (the official user patch layer). Takes effect on the next `dsh web` restart. |
-| **检测更新** (check) | out-of-tree packages | Compares the installed version against the npm registry `latest`. |
-| **更新** (update) | out-of-tree packages | Runs `pnpm add <pkg>@latest` in the profile directory (the same path `dsh plugin` uses). Restart to apply. |
-| **修复** (repair) | **every** row — including `@deepseek-ai/*` | Downloads the pristine published tarball and replaces the installed package directory. Official packages restore at the installed dsh suite's version (coherence); third-party at their installed version. If files are locked by the running server, it reports "close dsh web, restart, then click again". |
+| **检测更新** (check) | **every** row — out-of-tree **and** `@deepseek-ai/*` | Compares the installed version against the newest version actually published to npm (the packument's latest publish time — not the `latest` dist-tag, which rc-style suites drift from). Official rows read their installed version from the harness installation itself, never from a hoisted peer copy inside a profile. Up-to-date rows show a green ✓. |
+| **更新** (update) | out-of-tree packages | Runs `pnpm add <pkg>@latest` in the profile directory (the same path `dsh plugin` uses), passing the profile's recorded pnpm `storeDir` through so non-default stores never abort with `ERR_PNPM_UNEXPECTED_STORE`. Restart to apply. |
+| **更新 Harness** (update harness) | official rows, when outdated | Runs `npm install -g @deepseek-ai/dsh@latest` — the official suite updates as a whole so its packages stay version-aligned. Restart to apply. |
+| **修复** (repair) | **every** row | Downloads the pristine published tarball and replaces the installed package directory. Official packages restore at the installed dsh suite's version (coherence); third-party at their installed version. If files are locked by the running server, it reports "close dsh web, restart, then click again". |
 | **恢复全部** (restore all) | — | Removes every manager-written entry at once. |
 
-Harness-provided rows are otherwise read-only — this plugin never modifies the official installation, it only restores files to their published state when you ask.
+Enable/disable stays out-of-tree only — the manager never patches the official installation; official rows get check + repair + (when outdated) update-the-suite instead.
 
 ## Config
 
@@ -45,8 +46,9 @@ dsh plugin --profile web add useful-dsh-plugins
 
 ## Known Limitations
 
-- Enable/disable changes require a `dsh web` restart (the Web composition ships with the HMR watcher disabled upstream).
+- Enable/disable and updates require a `dsh web` restart (the Web composition ships with the HMR watcher disabled upstream).
 - Repair while the server is running can hit Windows file locks; the button reports this and works after a restart.
-- Updating requires `pnpm` on PATH (the same requirement as the official `dsh plugin` command); the manager passes `--config.minimumReleaseAge=0` so pnpm's release-age supply-chain gate cannot block fresh releases.
+- Updating out-of-tree packages requires `pnpm` on PATH (the same requirement as the official `dsh plugin` command); the manager passes `--config.minimumReleaseAge=0` so pnpm's release-age supply-chain gate cannot block fresh releases.
+- Updating the harness requires `npm` on PATH (the official global install path).
 - The tab lists raw Loader ids/modules; friendly names come from module specifiers.
 - Installing the meta package right after a release may need the same age-gate bypass on the install command: `dsh plugin --profile web add useful-dsh-plugins@latest --config.minimumReleaseAge=0`.
