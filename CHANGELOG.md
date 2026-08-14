@@ -2,9 +2,9 @@
 
 本文件记录 useful-dsh-plugins 仓库内各插件包的用户可见变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.2.0] - 2026-08-14
 
-### dsh-plugin-manager（新增）
+### dsh-plugin-manager 0.1.0（新增）
 
 - 首个公开版本：Web 设置 → 插件页的「管理」标签——任意插件行启用/停用（官方用户 patch 层，重启生效）、第三方包检测更新与一键更新、**所有行（含官方包）一键修复**（registry 原始 tarball 恢复，官方包按已装 dsh 套件版本保持一致）、一键恢复全部。
 
