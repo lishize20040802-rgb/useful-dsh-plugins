@@ -167,7 +167,8 @@ function ManageTab({ list, t }: TabProps) {
   const checkAll = async () => {
     setBusy('__check__')
     try {
-      const data = await call('/check-all')
+      // POST: the host registers /check-all and /restore as write routes.
+      const data = await call('/check-all', {})
       setChecks(data.packages ?? [])
     } catch (err) {
       setBanner(`${tt('check')} failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -192,7 +193,7 @@ function ManageTab({ list, t }: TabProps) {
   const restoreAll = async () => {
     setBusy('__restore__')
     try {
-      await call('/restore')
+      await call('/restore', {})
       setManaged([])
       setBanner(tt('restartBanner'))
     } catch (err) {
@@ -245,8 +246,9 @@ function ManageTab({ list, t }: TabProps) {
       </div>
       {entries.map(entry => {
         const id = entry.id ?? entry.module ?? '?'
-        const check = checkByName(entry.module)
-        const official = isOfficial(entry.module)
+        const moduleName = typeof entry.module === 'string' ? entry.module : undefined
+        const check = checkByName(moduleName)
+        const official = isOfficial(moduleName)
         const disabled = isDisabled(entry)
         return (
           <div key={id} className="dsh-pm-row">
@@ -255,24 +257,28 @@ function ManageTab({ list, t }: TabProps) {
             {official
               ? <>
                 <span className="dsh-pm-tag">{tt('official')}</span>
-                <button
-                  type="button"
-                  className="dsh-pm-btn"
-                  disabled={busy === `__repair__${entry.module}`}
-                  onClick={() => void repairOne(entry.module!)}
-                >
-                  {busy === `__repair__${entry.module}` ? '…' : tt('repair')}
-                </button>
+                {moduleName !== undefined && (
+                  <button
+                    type="button"
+                    className="dsh-pm-btn"
+                    disabled={busy === `__repair__${moduleName}`}
+                    onClick={() => void repairOne(moduleName)}
+                  >
+                    {busy === `__repair__${moduleName}` ? '…' : tt('repair')}
+                  </button>
+                )}
               </>
               : <>
-                <button
-                  type="button"
-                  className="dsh-pm-btn"
-                  disabled={busy === `__repair__${entry.module}`}
-                  onClick={() => void repairOne(entry.module!)}
-                >
-                  {busy === `__repair__${entry.module}` ? '…' : tt('repair')}
-                </button>
+                {moduleName !== undefined && (
+                  <button
+                    type="button"
+                    className="dsh-pm-btn"
+                    disabled={busy === `__repair__${moduleName}`}
+                    onClick={() => void repairOne(moduleName)}
+                  >
+                    {busy === `__repair__${moduleName}` ? '…' : tt('repair')}
+                  </button>
+                )}
                 {check !== undefined && (
                   <span className={`dsh-pm-status ${check.upToDate === true ? 'dsh-pm-ok' : check.latest === null ? 'dsh-pm-warn' : 'dsh-pm-warn'}`}>
                     {check.upToDate === true
@@ -282,9 +288,9 @@ function ManageTab({ list, t }: TabProps) {
                         : `${tt('outdated')}: ${check.latest}`}
                   </span>
                 )}
-                {check !== undefined && check.upToDate === false && (
-                  <button type="button" className="dsh-pm-btn" disabled={busy === entry.module} onClick={() => void updateOne(entry.module!)}>
-                    {busy === entry.module ? '…' : tt('updating')}
+                {check !== undefined && check.upToDate === false && moduleName !== undefined && (
+                  <button type="button" className="dsh-pm-btn" disabled={busy === moduleName} onClick={() => void updateOne(moduleName)}>
+                    {busy === moduleName ? '…' : tt('updating')}
                   </button>
                 )}
                 <button

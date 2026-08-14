@@ -29,6 +29,24 @@ const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i
 const DEFAULT_MAX_BODY = 64 * 1024
 const execFileAsync = promisify(execFile)
 
+/**
+ * The pnpm store root a profile's node_modules was linked from, read from
+ * pnpm's own `.modules.yaml` (the runtime mirror of the install). Returns
+ * `undefined` when unknown so plain `pnpm` defaults apply. The recorded value
+ * is the versioned directory (`…/v11`); the CLI wants the root above it.
+ */
+async function profileStoreDir(profileDir: string) {
+  try {
+    const raw = JSON.parse(await readFile(join(profileDir, 'node_modules', '.modules.yaml'), 'utf8'))
+    const storeDir = typeof raw?.storeDir === 'string' ? raw.storeDir : undefined
+    if (storeDir === undefined || storeDir === '') return undefined
+    const versioned = /[\\/]v\d+$/.test(storeDir)
+    return versioned ? dirname(storeDir) : storeDir
+  } catch {
+    return undefined
+  }
+}
+
 export const Config = z.object({
   profileDir: z.string(),
   maxBodyBytes: z.number().default(DEFAULT_MAX_BODY)
@@ -407,7 +425,13 @@ export function createHandler(options) {
           // minimumReleaseAge=0: pnpm ≥ 11.7 otherwise skips releases younger
           // than its supply-chain age gate — "update" must reach the newest
           // published version deterministically.
-          await execFileAsync('pnpm', ['add', `${body.name}@latest`, '--config.minimumReleaseAge=0'], {
+          const args = ['add', `${body.name}@latest`, '--config.minimumReleaseAge=0']
+          // The profile may be linked against a non-default pnpm store (its
+          // .modules.yaml records the one pnpm used at install); a mismatch
+          // aborts with ERR_PNPM_UNEXPECTED_STORE, so pass it through.
+          const storeDir = await profileStoreDir(await dir())
+          if (storeDir !== undefined) args.push('--store-dir', storeDir)
+          await execFileAsync('pnpm', args, {
             cwd: await dir(),
             shell: process.platform === 'win32',
             timeout: 300000,
