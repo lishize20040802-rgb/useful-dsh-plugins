@@ -1,15 +1,17 @@
 // Build both halves of the dsh-upload-button dual-face plugin.
+// - typecheck + declarations: tsc (tsconfig.json) -> lib/types/*.d.ts
 // - node half:   src/index.ts  -> lib/index.js   (ESM, runs in host cordis)
 // - browser half: src/client.tsx -> lib/client.js (classic script: registers
 //   a factory on window.__ModuleLoader__, matching the official tsdown output)
+import { execSync } from 'node:child_process'
 import { build } from 'esbuild'
 
 const PACKAGE_ID = 'dsh-upload-button'
 
 // The 10 platform seed words every client bundle must keep as require() calls,
-// resolved by the browser module table (dsh-client-web PLATFORM_MODULES). This
-// bundle imports values from no other graph plugin (its services — slots,
-// sessions, inputTriggers — ride cordis injection, not module imports).
+// resolved by the browser module table (dsh-client-web PLATFORM_MODULES).
+// Value imports from any other graph plugin would additionally need its name
+// in the `dsh.client.inject` manifest list.
 const CLIENT_EXTERNALS = [
   'react',
   'react/jsx-runtime',
@@ -22,6 +24,13 @@ const CLIENT_EXTERNALS = [
   '@deepseek-ai/dsh-client-ui-attachment',
   '@deepseek-ai/dsh-client-schema-form'
 ]
+
+// Official release shape: the source must typecheck before anything builds,
+// and lib/types/*.d.ts ships beside the bundles (exports.types conditions).
+// The tsc JS entry runs on every platform without .bin shims.
+const tsc = ['node', 'node_modules/typescript/bin/tsc']
+
+execSync(tsc.join(' ') + ' --noEmit', { stdio: 'inherit' })
 
 await build({
   entryPoints: ['src/index.ts'],
@@ -51,4 +60,6 @@ await build({
   },
 })
 
-console.log('built lib/index.js (node half) and lib/client.js (browser half)')
+execSync(tsc.join(' ') + ' --emitDeclarationOnly', { stdio: 'inherit' })
+
+console.log('built lib/index.js + lib/client.js + lib/types/*.d.ts')

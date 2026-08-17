@@ -15,6 +15,9 @@ import z from '@deepseek-ai/schemastery'
 import { createHash } from 'node:crypto'
 import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'node:path'
+// Type-only load activating the `ctx.webServer` declaration merge on the
+// cordis Context. Erased at build.
+import type {} from '@deepseek-ai/dsh-host-webserver'
 
 /** Cordis plugin name — must match the row id in cordis.patch.yml. */
 export const name = 'upload-button'
@@ -25,10 +28,17 @@ export const inject = ['webServer']
 /** Default byte cap for one upload. */
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024
 
+/** Validated configuration shape (schema output contract). */
+export interface UploadButtonConfig {
+  maxBytes: number
+  uploadDir: string
+  allowedExtensions: string[]
+}
+
 export const Config = z.object({
   maxBytes: z.number().default(DEFAULT_MAX_BYTES),
-  uploadDir: z.string(),
-  allowedExtensions: z.array(z.string())
+  uploadDir: z.string().default(join(process.cwd(), 'uploads')),
+  allowedExtensions: z.array(z.string()).default([])
 })
 
 const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i
@@ -39,7 +49,7 @@ const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i
  * @param raw - decoded file name
  * @returns a safe basename
  */
-export function sanitizeFileName(raw) {
+export function sanitizeFileName(raw: string): string {
   const cleaned = raw
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f]/g, '')
@@ -48,14 +58,24 @@ export function sanitizeFileName(raw) {
   return name === '' ? 'upload.bin' : name
 }
 
+/** Options for the upload route handler (exported for unit testing). */
+export interface UploadHandlerOptions {
+  /** Directory uploads are persisted to. */
+  dir: string
+  /** Hard byte cap for one upload body. */
+  maxBytes: number
+  /** Optional lowercase extension whitelist (empty = any). */
+  allowedExtensions?: string[]
+}
+
 /**
  * Build the upload route handler (exported for unit testing).
- * @param {{ dir: string, maxBytes: number, allowedExtensions?: string[] }} options
+ * @param options - persistence and admission options
  * @returns an async `(req, res)` handler
  */
-export function createUploadHandler(options) {
+export function createUploadHandler(options: UploadHandlerOptions) {
   const { dir, maxBytes, allowedExtensions } = options
-  return async (req, res) => {
+  return async (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => {
     if (req.method !== 'POST' && req.method !== 'DELETE') {
       res.writeHead(405, { allow: 'POST, DELETE' })
       res.end('method not allowed')
@@ -70,7 +90,7 @@ export function createUploadHandler(options) {
     }
     const origin = req.headers?.origin
     if (origin !== undefined) {
-      const scheme = req.socket?.encrypted ? 'https' : 'http'
+      const scheme = (req.socket as { encrypted?: boolean } | undefined)?.encrypted ? 'https' : 'http'
       if (origin !== `${scheme}://${host}`) {
         res.writeHead(403)
         res.end('forbidden: cross-origin')
@@ -116,7 +136,7 @@ export function createUploadHandler(options) {
       res.end('payload too large')
       return
     }
-    const chunks = []
+    const chunks: Buffer[] = []
     let total = 0
     for await (const chunk of req) {
       const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
@@ -173,11 +193,10 @@ export function createUploadHandler(options) {
   }
 }
 
-export function apply(ctx: Context, config) {
+export function apply(ctx: Context, config: UploadButtonConfig) {
   if (!Number.isInteger(config.maxBytes) || config.maxBytes < 1) {
     throw new Error('upload-button: maxBytes must be a positive integer')
   }
-  const dir = config.uploadDir ?? join(process.cwd(), 'uploads')
   // A route conflict (another plugin already owns /api/upload) must never
   // crash the host composition: degrade gracefully — the plugin stays
   // active and uploads simply report an HTTP error the user can read.
@@ -186,11 +205,11 @@ export function apply(ctx: Context, config) {
       return ctx.webServer.register({
         kind: 'prefix',
         path: '/api/upload',
-        handler: createUploadHandler({ dir, maxBytes: config.maxBytes, allowedExtensions: config.allowedExtensions })
+        handler: createUploadHandler({ dir: config.uploadDir, maxBytes: config.maxBytes, allowedExtensions: config.allowedExtensions })
       })
     } catch (err) {
       console.error('[dsh-upload-button] /api/upload route registration failed (another plugin may own it); uploads will fail with a clear error:', err)
-      return undefined
+      return () => {}
     }
   })
 }

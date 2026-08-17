@@ -1,7 +1,7 @@
 {
   "name": "dsh-upload-button",
-  "version": "0.2.0",
-  "description": "DeepSeek Harness dual-face plugin: a borderless file upload button in the composer toolbar with floating colored file cards; uploaded files attach to the outgoing message automatically.",
+  "version": "0.3.0",
+  "description": "DeepSeek Harness dual-face plugin: a borderless file upload button in the composer toolbar with floating colored file cards; uploads never touch the draft, and sent messages render the user's words only with the file cards floating above the bubble (paths stay model-visible only).",
   "keywords": [
     "deepseek",
     "harness",
@@ -14,8 +14,14 @@
   "type": "module",
   "main": "lib/index.js",
   "exports": {
-    ".": "./lib/index.js",
-    "./client": "./lib/client.js",
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -33,6 +39,7 @@
   "dsh": {
     "client": {
       "inject": [
+        "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-runtime"
       ],
       "platform": "web"
@@ -42,17 +49,24 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "*",
-    "@deepseek-ai/schemastery": "*",
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-attachment": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1",
     "react": "^18.2.0"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "@types/react": "~18.3.1",
     "esbuild": "^0.24.2",
     "typescript": "^5.7.2"
   },
   "scripts": {
     "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
     "test": "node --test",
     "prepublishOnly": "npm run build && npm test"
   },
