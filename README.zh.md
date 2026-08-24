@@ -2,7 +2,7 @@
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`@deepseek-ai/dsh`）的社区插件集合。**本项目是独立社区项目，与 DeepSeek 官方无隶属关系。**
 
-两个开箱即用的插件互相配合：在聊天输入框上传文件，然后让 agent 直接读取。
+开箱即用的插件互相配合：在聊天输入框上传文件 → 让 agent 直接读取文档 → 图片由 DeepSeek 内置多模态模型自动识别成文字。
 
 ## 插件列表
 
@@ -10,6 +10,8 @@
 |---|---|---|
 | [`dsh-upload-button`](./dsh-upload-button) | 双面（host + browser） | 输入框工具栏的无边框 📎 按钮。上传的文件以浮在输入框上方的微软经典配色竖版卡片呈现；按原有「发送」键即自动把文件路径附入消息（原生输入机 occurrence 管线，零发送拦截）；消息里的路径渲染为紧凑文件卡片（点击打开文件）。 |
 | [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | 模型可用的 `read_document` 工具：经由 Harness 文件系统后端（`ctx.fs`）读取文本、PDF、DOCX 和 XLSX 文件，具备与内置 read 工具一致的行窗口分页语义。**仅限文字，不支持识图（OCR）——扫描版 PDF 提取不到文字。** |
+| [`dsh-plugin-vision-reader`](./dsh-plugin-vision-reader) | 双面（host + browser） | 让**纯文本主模型也能看图**：遇到图片时自动调用 DeepSeek 内置多模态模型（`deepseek-v4-flash-vision-exp`）识别，结果以纯文本返回——**无需任何额外 API Key**（与主模型共用 `DEEPSEEK_API_KEY`）。包含 `vision` 工具、粘贴图片自动转述、纯文本主模型时自动隐藏必失败的 `read_image` 三个能力。 |
+| [`dsh-desktop-config`](./dsh-desktop-launcher) | 双面（host + browser） | 桌面端启动器配置：以 settings 命名空间（`desktop-launcher`）保存端口、绑定地址、自动打开浏览器，Electron 桌面端与 Web 设置页共享一份配置（`$DSH_HOME/settings.yaml`）。 |
 | [`useful-dsh-plugin-manager`](./useful-dsh-plugin-manager) | 双面（host + browser） | 可视化插件管理器：Web 设置 → 插件页新增「管理」标签——任意插件行停用/启用、第三方包检测更新与一键更新、**所有行（含官方包）一键修复**（恢复 registry 官方原件）、一键恢复全部。 |
 
 ## 安装
@@ -28,6 +30,8 @@ dsh plugin --profile web add useful-dsh-plugins@latest --config.minimumReleaseAg
 ```sh
 dsh plugin --profile web add dsh-upload-button@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add dsh-plugin-doc-reader@latest --config.minimumReleaseAge=0
+dsh plugin --profile web add dsh-plugin-vision-reader@latest --config.minimumReleaseAge=0
+dsh plugin --profile web add dsh-desktop-config@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add useful-dsh-plugin-manager@latest --config.minimumReleaseAge=0
 # 重启 dsh web
 ```
@@ -46,12 +50,13 @@ dsh plugin --profile web add useful-dsh-plugin-manager@latest --config.minimumRe
 6. **终极重置**：删除整个 `$DSH_HOME/profiles/web` 目录，下次 `dsh web` 会用官方模板自动重建（会清掉该 profile 下所有插件与自定义配置）。
 7. 每次改动后**重启 `dsh web`** 生效。
 
-图形化替代方案：安装 `useful-dsh-plugin-manager`（计划中）后在 Settings → Plugins 里点按钮完成启用/停用、检测与公开版差异、一键更新。
+图形化替代方案：安装 `useful-dsh-plugin-manager` 后在 Settings → Plugins 里点按钮完成启用/停用、检测与公开版差异、一键更新。
 
 ## 环境要求
 
 - DeepSeek Harness `@deepseek-ai/dsh` ≥ 0.1.0-rc.6（peer 依赖由 Harness 安装提供）
 - `dsh-upload-button` 另需 `web` profile 组合（挂载 `ctx.webServer`、`ctx.slots` 与 `ctx.inputTriggers`）
+- `dsh-plugin-vision-reader` 需要 DeepSeek 官方账号可用 `deepseek-v4-flash-vision-exp`（与主模型共用 `DEEPSEEK_API_KEY`，无额外计费渠道）
 
 ## 开发
 
@@ -59,8 +64,10 @@ dsh plugin --profile web add useful-dsh-plugin-manager@latest --config.minimumRe
 # doc-reader：纯 ESM，无构建步骤
 cd dsh-plugin-doc-reader && npm install --legacy-peer-deps && npm test
 
-# upload-button：esbuild 构建两个半边
+# upload-button / vision-reader / desktop-config：esbuild 构建两个半边
 cd dsh-upload-button && npm install --legacy-peer-deps && npm run build && npm test
+cd dsh-plugin-vision-reader && npm install --legacy-peer-deps && npm run build && npm test
+cd dsh-desktop-launcher && npm install --legacy-peer-deps && npm run build && npm test
 ```
 
 架构笔记与 UI 机制深挖见 [`docs/`](./docs)——尤其是输入机 occurrence 管线研究（`docs/dsh-web-ui-plugin-research.md`），是任何想在此平台构建"输入框附件类插件"的开发者的参考。

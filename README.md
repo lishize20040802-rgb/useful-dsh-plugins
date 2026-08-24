@@ -2,7 +2,7 @@
 
 Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`@deepseek-ai/dsh`). **This is an independent community project, not affiliated with DeepSeek.**
 
-Two drop-in plugins that work together: upload a file in the chat composer, then let the agent read it.
+Drop-in plugins that work together: upload a file in the chat composer → let the agent read documents → images are recognized into text automatically via DeepSeek's built-in multimodal model.
 
 [中文说明](./README.zh.md)
 
@@ -12,6 +12,8 @@ Two drop-in plugins that work together: upload a file in the chat composer, then
 |---|---|---|
 | [`dsh-upload-button`](./dsh-upload-button) | dual-face (host + browser) | A borderless 📎 button in the composer toolbar. Uploaded files appear as floating, Microsoft-classic colored cards above the input; pressing the ordinary Send button attaches their saved paths to the outgoing message automatically (native input-machine occurrence pipeline — zero send interception); message paths render as compact file cards (click to open). |
 | [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | The model-facing `read_document` tool: reads text, PDF, DOCX and XLSX files through the harness filesystem backend (`ctx.fs`), with the built-in read tool's line-window semantics. **Text only — no image recognition (OCR); scanned PDFs yield no text.** |
+| [`dsh-plugin-vision-reader`](./dsh-plugin-vision-reader) | dual-face (host + browser) | Lets **text-only main models read images**: image content is routed through DeepSeek's built-in multimodal model (`deepseek-v4-flash-vision-exp`) and returned as plain text — **no extra API key required** (shares the main model's `DEEPSEEK_API_KEY`). Three capabilities: a `vision` tool, auto-transcription of pasted images, and automatic `read_image` hiding while the main model is text-only. |
+| [`dsh-desktop-config`](./dsh-desktop-launcher) | dual-face (host + browser) | Desktop launcher configuration: port, bind host, auto-open — owned as a settings namespace (`desktop-launcher`) in `$DSH_HOME/settings.yaml`, shared between the Electron desktop shell and the web settings page. |
 | [`useful-dsh-plugin-manager`](./useful-dsh-plugin-manager) | dual-face (host + browser) | A visual plugin manager: a Manage tab in Web Settings → Plugins — disable/enable any plugin row, check and update out-of-tree packages, **one-click repair of every row (official packages included, restored from the registry tarball)**, and restore-all. |
 
 ## Installation
@@ -30,6 +32,8 @@ Or install the plugins individually:
 ```sh
 dsh plugin --profile web add dsh-upload-button@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add dsh-plugin-doc-reader@latest --config.minimumReleaseAge=0
+dsh plugin --profile web add dsh-plugin-vision-reader@latest --config.minimumReleaseAge=0
+dsh plugin --profile web add dsh-desktop-config@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add useful-dsh-plugin-manager@latest --config.minimumReleaseAge=0
 # restart dsh web
 ```
@@ -48,12 +52,13 @@ The plugins live in `$DSH_HOME/profiles/<name>/node_modules` (default `~/.dsh/pr
 6. **Nuclear reset**: delete `$DSH_HOME/profiles/web` entirely; the next `dsh web` rebuilds the default template (clears all plugins and custom config for that profile).
 7. **Restart `dsh web`** after every change.
 
-A graphical alternative (enable/disable, version check, one-click update in Settings → Plugins) is planned as `useful-dsh-plugin-manager`.
+A graphical alternative (enable/disable, version check, one-click update in Settings → Plugins) is provided by `useful-dsh-plugin-manager`.
 
 ## Requirements
 
 - DeepSeek Harness `@deepseek-ai/dsh` ≥ 0.1.0-rc.6 (peer dependencies are provided by the harness installation)
 - `dsh-upload-button` additionally needs the `web` profile composition (it mounts `ctx.webServer`, `ctx.slots` and `ctx.inputTriggers`)
+- `dsh-plugin-vision-reader` needs a DeepSeek account with `deepseek-v4-flash-vision-exp` available (shares the main model's `DEEPSEEK_API_KEY` — no separate billing channel)
 
 ## Development
 
@@ -61,8 +66,10 @@ A graphical alternative (enable/disable, version check, one-click update in Sett
 # doc-reader: plain ESM, no build step
 cd dsh-plugin-doc-reader && npm install --legacy-peer-deps && npm test
 
-# upload-button: esbuild bundles both halves
+# upload-button / vision-reader / desktop-config: esbuild bundles both halves
 cd dsh-upload-button && npm install --legacy-peer-deps && npm run build && npm test
+cd dsh-plugin-vision-reader && npm install --legacy-peer-deps && npm run build && npm test
+cd dsh-desktop-launcher && npm install --legacy-peer-deps && npm run build && npm test
 ```
 
 Architecture notes and the UI-mechanism deep dive live in [`docs/`](./docs) (currently in Chinese) — notably the input-machine occurrence pipeline research (`docs/dsh-web-ui-plugin-research.md`), which is the reference for anyone building composer-attachment plugins on this platform.
