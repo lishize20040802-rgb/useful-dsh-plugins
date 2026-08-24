@@ -9,5 +9,11 @@
     - id: tool-doc-reader
       name: 'dsh-plugin-doc-reader'
 
+    - id: vision-reader
+      name: 'dsh-plugin-vision-reader'
+
+    - id: desktop-launcher
+      name: 'dsh-desktop-config'
+
     - id: plugin-manager
       name: 'useful-dsh-plugin-manager'

@@ -1,0 +1,9 @@
+# dsh-desktop-config bundle patch: one insert registering the dual-face plugin.
+# The desktop app reads this namespace from $DSH_HOME/settings.yaml at launch,
+# so defaults here and defaults in the Electron shell must stay in sync.
+- insert:
+    - id: desktop-launcher
+      name: 'dsh-desktop-config'
+      config:
+        port: 3080
+        host: 127.0.0.1

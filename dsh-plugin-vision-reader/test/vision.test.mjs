@@ -1,0 +1,99 @@
+// dsh-plugin-vision-reader — unit tests for the pure vision logic.
+//
+// Covers the transcription contract: non-image blocks pass through, image
+// blocks are replaced by text (with the 【图片转述】 prefix), failed calls
+// degrade to the failure placeholder, and the per-step cache avoids
+// re-calling the model for the same attachment id.
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { callVision, transcribeBlocks } from '../lib/index.js'
+
+/** A fake LLM service face that returns canned text per call. */
+function fakeLlm(text = '一张测试图片') {
+  let calls = 0
+  return {
+    stream: async function* () {
+      calls += 1
+      yield { type: 'text-delta', text }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+    calls: () => calls,
+  }
+}
+
+/** A minimal resolved config for tests. */
+const cfg = {
+  provider: 'deepseek-official',
+  model: 'deepseek-v4-flash-vision-exp',
+  transcribeImages: true,
+  autoHideReadImage: true,
+  instruction: '请详细描述这张图片的内容',
+}
+
+const imageBlock = (id = 'att-1') => ({
+  type: 'image',
+  attachment: {
+    attachmentId: id,
+    mediaType: 'image/png',
+    bytes: 1024,
+    width: 100,
+    height: 80,
+  },
+})
+
+test('callVision assembles streamed deltas into text', async () => {
+  const llm = fakeLlm('一只猫')
+  const result = await callVision(llm, cfg, '描述内容', [{ attachmentId: 'a', mediaType: 'image/png', bytes: 10 }])
+  assert.equal(result.ok, true)
+  assert.equal(result.ok && result.text, '一只猫')
+  assert.equal(llm.calls(), 1)
+})
+
+test('callVision reports a finish error as failure', async () => {
+  const llm = {
+    stream: async function* () {
+      yield { type: 'text-delta', text: '部分内容' }
+      yield { type: 'finish', reason: { kind: 'error', failure: { code: 'X', message: 'boom' } } }
+    },
+  }
+  const result = await callVision(llm, cfg, 'x', [])
+  assert.equal(result.ok, false)
+  assert.equal(result.ok || result.error.includes('error'), true)
+})
+
+test('transcribeBlocks passes non-image blocks through untouched', async () => {
+  const llm = fakeLlm()
+  const blocks = [{ type: 'text', text: '你好' }, { type: 'reasoning', text: '思考' }]
+  const out = await transcribeBlocks(llm, cfg, blocks, undefined, new Map())
+  assert.deepEqual(out, blocks)
+})
+
+test('transcribeBlocks replaces image blocks with prefixed text', async () => {
+  const llm = fakeLlm('一只猫')
+  const blocks = [{ type: 'text', text: '看图：' }, imageBlock('att-1')]
+  const out = await transcribeBlocks(llm, cfg, blocks, undefined, new Map())
+  assert.equal(out.length, 2)
+  assert.equal(out[1].type, 'text')
+  assert.equal(out[1].text, '【图片转述】一只猫')
+})
+
+test('transcription caches by attachment id within one step', async () => {
+  const llm = fakeLlm('同一张图')
+  const blocks = [imageBlock('att-dup'), imageBlock('att-dup')]
+  const out = await transcribeBlocks(llm, cfg, blocks, undefined, new Map())
+  assert.equal(out.length, 2)
+  assert.equal(out[0].text, out[1].text)
+  assert.equal(llm.calls(), 1) // 同一 attachmentId 只调用一次
+})
+
+test('failed transcription degrades to the failure placeholder', async () => {
+  const llm = {
+    stream: async function* () {
+      throw new Error('network down')
+    },
+  }
+  const blocks = [imageBlock('att-bad')]
+  const out = await transcribeBlocks(llm, cfg, blocks, undefined, new Map())
+  assert.equal(out[0].type, 'text')
+  assert.equal(out[0].text.includes('图片自动转述失败'), true)
+})
