@@ -1,4 +1,4 @@
-window.__ModuleLoader__.load({ id: "dsh-desktop-launcher", factory: (require) => { var module = { exports: {} }; var exports = module.exports; Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+window.__ModuleLoader__.load({ id: "dsh-desktop-config", factory: (require) => { var module = { exports: {} }; var exports = module.exports; Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 "use strict";
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -70,7 +70,7 @@ function apply(ctx) {
     try {
       return register();
     } catch (err) {
-      console.warn(`[dsh-desktop-launcher] slot "${label}" registration failed; that UI seat stays absent:`, err);
+      console.warn(`[dsh-desktop-config] slot "${label}" registration failed; that UI seat stays absent:`, err);
       return () => {
       };
     }

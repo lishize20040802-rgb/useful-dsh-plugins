@@ -1,4 +1,4 @@
-// Build both halves of the dsh-desktop-launcher dual-face plugin.
+// Build both halves of the dsh-desktop-config dual-face plugin.
 // - typecheck + declarations: tsc (tsconfig.json) -> lib/types/*.d.ts
 // - node half:   src/index.ts  -> lib/index.js   (ESM, runs in host cordis)
 // - browser half: src/client.tsx -> lib/client.js (classic script: registers
@@ -6,7 +6,7 @@
 import { execSync } from 'node:child_process'
 import { build } from 'esbuild'
 
-const PACKAGE_ID = 'dsh-desktop-launcher'
+const PACKAGE_ID = 'dsh-desktop-config'
 
 // The platform seed words every client bundle must keep as require() calls.
 const CLIENT_EXTERNALS = [

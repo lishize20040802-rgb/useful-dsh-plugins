@@ -27,7 +27,7 @@ function apply(ctx, rawConfig) {
     scope.get();
     sctx.effect(() => {
       const log = (entry) => {
-        console.log(`[dsh-desktop-launcher] serving on http://${entry.host}:${entry.port}`);
+        console.log(`[dsh-desktop-config] serving on http://${entry.host}:${entry.port}`);
       };
       log(scope.get());
       const off = scope.watch(() => log(scope.get()));

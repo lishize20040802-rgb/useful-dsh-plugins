@@ -1,4 +1,4 @@
-// dsh-desktop-launcher — unit tests for config normalization and the
+// dsh-desktop-config — unit tests for config normalization and the
 // settings namespace contract.
 import test from 'node:test'
 import assert from 'node:assert/strict'

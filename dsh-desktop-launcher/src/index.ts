@@ -1,4 +1,4 @@
-// dsh-desktop-launcher — node half (host side).
+// dsh-desktop-config — node half (host side).
 //
 // Owns the desktop app's configuration as a settings namespace
 // (`desktop-launcher`), so the Electron shell and the web UI share one
@@ -72,7 +72,7 @@ export function apply(ctx: Context, rawConfig: unknown): void {
     scope.get()
     sctx.effect(() => {
       const log = (entry: DesktopLauncherConfig): void => {
-        console.log(`[dsh-desktop-launcher] serving on http://${entry.host}:${entry.port}`)
+        console.log(`[dsh-desktop-config] serving on http://${entry.host}:${entry.port}`)
       }
       log(scope.get() as unknown as DesktopLauncherConfig)
       const off = scope.watch(() => log(scope.get() as unknown as DesktopLauncherConfig))

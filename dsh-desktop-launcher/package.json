@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop-config",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness desktop-config host+client plugin: owns the desktop app's configuration (port, auto-open, window) as a settings namespace, so the Electron shell and the web UI share one source of truth. Works with the offline desktop build.",
   "keywords": [
     "deepseek",

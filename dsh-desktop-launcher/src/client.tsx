@@ -1,4 +1,4 @@
-// dsh-desktop-launcher — browser half (entry).
+// dsh-desktop-config — browser half (entry).
 //
 // Registers a compact info card under Settings → Plugins. The card is
 // read-only: the desktop launcher's configuration lives in the settings
@@ -98,7 +98,7 @@ export function apply(ctx: ClientContext): void {
     try {
       return register()
     } catch (err) {
-      console.warn(`[dsh-desktop-launcher] slot "${label}" registration failed; that UI seat stays absent:`, err)
+      console.warn(`[dsh-desktop-config] slot "${label}" registration failed; that UI seat stays absent:`, err)
       return () => {}
     }
   }
