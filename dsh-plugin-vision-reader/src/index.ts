@@ -5,18 +5,22 @@
 // (`deepseek-official` / `deepseek-v4-flash-vision-exp`). No extra API key:
 // the vision call uses the same DEEPSEEK_API_KEY the main model uses.
 //
-// Three features:
+// Four features:
 //   A. `vision` tool — the model calls it with image path(s); the plugin
 //      reads the files, persists them as attachments, and asks the built-in
 //      multimodal model to describe/answer, returning plain text.
-//   B. Pasted-image transcription — images the user pastes directly into a
-//      message are transcribed to text before the message reaches the main
-//      model (the main model only ever sees text; the image never enters the
-//      main conversation context).
-//   C. Dynamic `read_image` hiding — in a text-only main-model session the
-//      built-in `read_image` tool would always fail, so it is hidden and the
-//      model is steered to `vision` instead; switching to a multimodal main
-//      model restores `read_image` automatically.
+//   B. Message transcription — every image reaching the main model is turned
+//      into text first: `image` blocks (pasted images) AND image paths inside
+//      text blocks (files uploaded via dsh-upload-button arrive as path text,
+//      e.g. `C:\...\uploads\<12hex>-photo.png`) are transcribed. The image
+//      never enters the main conversation context.
+//   C. `read_image` redirection — when a text-only main model calls the
+//      built-in `read_image` tool, its image result is transcribed to text
+//      before the main model sees it, so the call never fails on modality.
+//   D. Dynamic `read_image` hiding — in a text-only main-model session the
+//      built-in `read_image` tool is hidden from the tool list and the model
+//      is steered to `vision` instead; switching to a multimodal main model
+//      restores `read_image` automatically.
 //
 // Everything uses host services only (tools/fs/systemPrompt/llm/attachments);
 // zero external runtime dependencies.
@@ -31,12 +35,21 @@ import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deeps
 import type { ContentBlock, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
-import { transcribeBlocks, callVision, type ImageRef as VisionImageRef, type VisionLlm, type VisionResult } from './vision.js'
+import {
+  transcribeBlocks,
+  callVision,
+  transcribeTextPaths,
+  findImagePaths,
+  readImageRef,
+  type ImageRef as VisionImageRef,
+  type VisionLlm,
+  type VisionResult
+} from './vision.js'
 
 // Re-export the pure vision logic so tests and consumers can exercise it
 // without a running host (same pattern as official plugins exposing helpers).
 export type { ImageRef as VisionImageRef, VisionLlm, VisionResult } from './vision.js'
-export { callVision, transcribeBlocks } from './vision.js'
+export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef } from './vision.js'
 
 /** Cordis plugin name — must match the row id in cordis.patch.yml. */
 export const name = 'vision-reader'
@@ -168,22 +181,43 @@ export function apply(ctx: Context, rawConfig: unknown): void {
     return resolved
   })
 
-  // ── Feature B: pasted-image transcription (agent/pre-step) ──────────────
+  // ── Feature B: pasted-image & path transcription (agent/pre-step) ───────
+  // Two image carriers are transcribed before the main model sees them:
+  //   1. `image` blocks (images pasted directly into a message);
+  //   2. image paths inside text blocks (files uploaded via dsh-upload-button
+  //      arrive as path text, e.g. `C:\...\uploads\<12hex>-photo.png`).
+  // Both keep their visual identity in the UI (image blocks and file cards
+  // survive) while the main model only ever sees text.
   const transcriptCache = new Map<string, string>()
   if (cfg.transcribeImages) {
     ctx.on('agent/pre-step', async (payload: { agent: Agent; messages: UserMessage[]; signal: AbortSignal }, next: () => Promise<PreStepDecision>) => {
       const messages = payload.messages ?? []
-      if (!messages.some((message) => hasImageBlock(message.content))) return next()
+      const hasImage = messages.some((message) => hasImageBlock(message.content))
+      const hasTextPath = messages.some((message) =>
+        (message.content ?? []).some((block) => block.type === 'text' && findImagePaths(block.text).length > 0)
+      )
+      if (!hasImage && !hasTextPath) return next()
       if (payload.signal?.aborted) return next()
       try {
         const out: UserMessage[] = []
         for (const message of messages) {
           const content = message.content
-          if (!hasImageBlock(content)) {
+          if (!hasImageBlock(content) && !(content ?? []).some((block) => block.type === 'text' && findImagePaths(block.text).length > 0)) {
             out.push(message)
             continue
           }
-          const blocks = await transcribeBlocks(llm, cfg, content as ContentBlock[], payload.signal, transcriptCache)
+          const blocks: ContentBlock[] = []
+          for (const block of content) {
+            if (block.type === 'image') {
+              const transcribed = await transcribeBlocks(llm, cfg, [block], payload.signal, transcriptCache)
+              blocks.push(...transcribed)
+            } else if (block.type === 'text') {
+              const rewritten = await transcribeTextPaths(llm, cfg, ctx.fs, attachments, block.text, payload.signal, transcriptCache)
+              blocks.push({ ...block, text: rewritten })
+            } else {
+              blocks.push(block)
+            }
+          }
           out.push({ ...message, content: blocks })
         }
         return { kind: 'enter', messages: out }
@@ -193,6 +227,47 @@ export function apply(ctx: Context, rawConfig: unknown): void {
     })
   }
 
+  // ── Feature C: read_image redirection for text-only main models ─────────
+  // The built-in read_image tool returns an `image` block; a text-only main
+  // model cannot consume it. When the calling route is text-only, transcribe
+  // the image block to text so the tool call succeeds for the model (the
+  // result is text, not an image it cannot see).
+  ctx.on('tools/post-execute', async (exec: any, result: any, next: () => any) => {
+    if (exec?.name !== 'read_image' || result?.isError) return next()
+    if (!exec.agent) return next()
+    let imageCapable = false
+    try {
+      const info = await llm.resolveModelInfo(exec.agent.options?.provider, exec.agent.options?.model)
+      imageCapable = Boolean(info?.inputModalities && info.inputModalities.includes('image'))
+    } catch {
+      imageCapable = false
+    }
+    if (imageCapable) return next()
+    // The result carries the image in `content` (text + image blocks) and the
+    // attachment metadata in `value.image`. Transcribe via the vision model.
+    const imageBlock = (result.content ?? []).find((b: any) => b?.type === 'image')
+    const imageValue = result.value?.image
+    if (!imageBlock || !imageValue) return next()
+    const ref: ImageAttachmentRef = {
+      attachmentId: imageValue.attachmentId,
+      mediaType: imageValue.mediaType,
+      bytes: imageValue.bytes,
+      width: imageValue.width,
+      height: imageValue.height
+    }
+    const outcome = await callVision(llm, cfg, cfg.instruction, [ref], exec.signal)
+    const transcribed = outcome.ok ? outcome.text : null
+    return {
+      kind: 'accept',
+      content: [{
+        type: 'text',
+        text: transcribed !== null
+          ? `【图片转述】${transcribed}`
+          : '【图片转述失败：视觉模型调用出错。请稍后重试。】'
+      }]
+    }
+  })
+
   // ── Feature A: the vision tool ──────────────────────────────────────────
   ctx.systemPrompt.section({
     name: 'tool:vision',
@@ -200,7 +275,7 @@ export function apply(ctx: Context, rawConfig: unknown): void {
     text:
       `本会话由 dsh-plugin-vision-reader 提供图片能力，视觉模型：${cfg.provider}/${cfg.model}。` +
       '遇到图片文件路径时，一律先用 vision 工具（file_path 指向单张图片，多张用 file_paths 传路径数组，instruction 说明要看什么）取得识别文本后再继续；' +
-      '不要尝试用 read_image 或直接猜测图片内容。用户直接粘贴进对话的图片会被自动转述成文字，' +
+      '不要尝试用 read_image 或直接猜测图片内容。用户上传或粘贴进对话的图片会被自动转述成文字，' +
       '模型看到以【图片转述】开头的文本即为转述结果。'
   })
 

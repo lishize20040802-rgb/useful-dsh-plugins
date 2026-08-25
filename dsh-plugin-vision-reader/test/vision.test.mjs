@@ -6,7 +6,7 @@
 // re-calling the model for the same attachment id.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { callVision, transcribeBlocks } from '../lib/index.js'
+import { callVision, transcribeBlocks, findImagePaths, readImageRef, transcribeTextPaths } from '../lib/index.js'
 
 /** A fake LLM service face that returns canned text per call. */
 function fakeLlm(text = '一张测试图片') {
@@ -96,4 +96,52 @@ test('failed transcription degrades to the failure placeholder', async () => {
   const out = await transcribeBlocks(llm, cfg, blocks, undefined, new Map())
   assert.equal(out[0].type, 'text')
   assert.equal(out[0].text.includes('图片自动转述失败'), true)
+})
+
+// ── path transcription (upload-button uploads arrive as path text) ────────
+
+test('findImagePaths recognizes Windows image paths in text', () => {
+  const text = '请看这张图 `D:\\harness\\uploads\\a1b2c3d4e5f6-photo.png` 和 C:/x/y/pic.jpg'
+  const paths = findImagePaths(text)
+  assert.equal(paths.length, 2)
+  assert.equal(paths[0].path, 'D:\\harness\\uploads\\a1b2c3d4e5f6-photo.png')
+  assert.equal(paths[1].path, 'C:/x/y/pic.jpg')
+})
+
+test('findImagePaths ignores non-image extensions', () => {
+  assert.equal(findImagePaths('D:\\a\\file.txt 和 C:/b/doc.pdf').length, 0)
+})
+
+test('transcribeTextPaths keeps the path and appends transcription', async () => {
+  const llm = fakeLlm('一只猫')
+  const fsFace = {
+    resolve: async (p) => ({ displayPath: p }),
+    readBytes: async () => new Uint8Array([1, 2, 3]),
+  }
+  const attFace = {
+    imageLimits: { mediaTypes: ['image/png', 'image/jpeg'], maxImageBytes: 1000000 },
+    saveImage: async () => ({ attachmentId: 'att-x', mediaType: 'image/png', bytes: 10, width: 1, height: 1 }),
+  }
+  const text = '请看 `D:\\harness\\uploads\\a1b2c3d4e5f6-photo.png`'
+  const out = await transcribeTextPaths(llm, cfg, fsFace, attFace, text, undefined, new Map())
+  assert.equal(out.includes('a1b2c3d4e5f6-photo.png'), true) // 路径保留
+  assert.equal(out.includes('【图片转述】一只猫'), true) // 转述附加
+})
+
+test('transcribeTextPaths leaves unreadable paths untouched', async () => {
+  const llm = fakeLlm()
+  const fsFace = {
+    resolve: async () => { throw new Error('not found') },
+  }
+  const attFace = { imageLimits: { mediaTypes: ['image/png'] }, saveImage: async () => ({}) }
+  const text = 'D:\\missing\\photo.png'
+  const out = await transcribeTextPaths(llm, cfg, fsFace, attFace, text, undefined, new Map())
+  assert.equal(out, text) // 不可读路径不改变
+})
+
+test('readImageRef returns undefined for non-image paths', async () => {
+  const fsFace = { resolve: async (p) => ({ displayPath: p }) }
+  const attFace = { imageLimits: { mediaTypes: ['image/png'] }, saveImage: async () => ({}) }
+  const ref = await readImageRef(fsFace, attFace, 'D:\\a\\note.txt', undefined)
+  assert.equal(ref, undefined)
 })

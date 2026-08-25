@@ -5,7 +5,7 @@
 // implementation and the pure parts can be tested without a running host.
 import type { ContentBlock, FinishReason, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { VisionReaderConfig } from './index.js'
 
 /** System prompt for the vision call: describe only, no mechanism chatter. */
@@ -21,6 +21,31 @@ export type ImageRef = ImageAttachmentRef
 /** Minimal LLM service face the vision flow needs. */
 export interface VisionLlm {
   stream(options: GenerateOptions): AsyncIterable<StreamChunk>
+}
+
+/** Minimal attachment-store face the transcription flow needs. */
+export interface VisionAttachments {
+  imageLimits: {
+    mediaTypes: readonly ImageMediaType[]
+    maxImageBytes?: number
+    maxMessageImageBytes?: number
+  }
+  saveImage(input: { data: Uint8Array; mediaType: ImageMediaType; name?: string }): Promise<ImageRef>
+}
+
+/** Minimal fs face the transcription flow needs. */
+export interface VisionFs {
+  resolve(path: string): Promise<{ displayPath: string }>
+  readBytes(target: { displayPath: string }, signal: AbortSignal | undefined, byteCap: number): Promise<Uint8Array>
+}
+
+/** Accepted image extensions mapped to media types (mirrors read_image). */
+export const IMAGE_EXTENSIONS: Record<string, ImageMediaType> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif'
 }
 
 /** Result of one vision call. */
@@ -116,4 +141,128 @@ export async function transcribeBlocks(
     out.push({ type: 'text', text: text !== null ? `【图片转述】${text}` : TRANSCRIBE_FAILED_TEXT })
   }
   return out
+}
+
+/** One recognized image path inside a text block. */
+export interface PathMatch {
+  /** Full path as written in the text. */
+  path: string
+  /** Index where the path starts in the text. */
+  start: number
+  /** Index just past the path end. */
+  end: number
+}
+
+/**
+ * Find every image path inside a text string. Matches Windows or POSIX
+ * absolute paths ending in a supported image extension (optionally quoted).
+ * Paths may be inline code (`` `path` ``) or plain text; the backticks are
+ * part of the match so the rewrite keeps the file card rendering.
+ * @param text - the raw text block content.
+ * @returns matches sorted by start index.
+ */
+export function findImagePaths(text: string): PathMatch[] {
+  const out: PathMatch[] = []
+  const re = /(`)?([A-Za-z]:[\\/][^\s`"'<>|*?:]+|~[\\/][^\s`"'<>|*?:]+)(\.png|\.jpe?g|\.webp|\.gif)(`)?/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const leadingTick = m[1] !== undefined
+    const trailingTick = m[4] !== undefined
+    out.push({
+      path: m[2] + m[3], // path without the backticks
+      start: m.index + (leadingTick ? 1 : 0),
+      end: m.index + m[0].length - (trailingTick ? 1 : 0)
+    })
+  }
+  return out
+}
+
+/**
+ * Read one image file through the attachments store (same admission rules as
+ * the `vision` tool) and return the durable reference.
+ * @param fs - the fs service face.
+ * @param attachments - the attachment store face.
+ * @param path - the image path.
+ * @param signal - optional abort signal.
+ * @returns the durable reference, or undefined when the path is not a readable image.
+ */
+export async function readImageRef(
+  fs: VisionFs,
+  attachments: VisionAttachments,
+  path: string,
+  signal: AbortSignal | undefined
+): Promise<ImageRef | undefined> {
+  const dot = path.lastIndexOf('.')
+  const ext = dot >= 0 ? path.slice(dot).toLowerCase() : ''
+  const mediaType = IMAGE_EXTENSIONS[ext] as ImageMediaType | undefined
+  if (mediaType === undefined) return undefined
+  if (!attachments.imageLimits.mediaTypes.includes(mediaType)) return undefined
+  const target = await fs.resolve(path)
+  const byteCap = Math.min(
+    attachments.imageLimits.maxImageBytes ?? Number.POSITIVE_INFINITY,
+    attachments.imageLimits.maxMessageImageBytes ?? Number.POSITIVE_INFINITY
+  )
+  const data = await fs.readBytes(target, signal, byteCap)
+  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return attachments.saveImage({ data, mediaType, name: i >= 0 ? path.slice(i + 1) : path })
+}
+
+/**
+ * Transcribe every image path inside one text block: each recognized path is
+ * kept verbatim (so the UI file card and the model's path reference survive)
+ * and followed by an appended `【图片转述】…` line with the recognized text.
+ * Paths whose file cannot be read (or fail admission) are left untouched.
+ * @param llm - the LLM service face.
+ * @param cfg - resolved plugin configuration.
+ * @param fs - the fs service face.
+ * @param attachments - the attachment store face.
+ * @param text - the text block content.
+ * @param signal - optional abort signal.
+ * @param cache - per-step transcription cache keyed by path.
+ * @returns the rewritten text, or the original when no image path was found.
+ */
+export async function transcribeTextPaths(
+  llm: VisionLlm,
+  cfg: VisionReaderConfig,
+  fs: VisionFs,
+  attachments: VisionAttachments,
+  text: string,
+  signal: AbortSignal | undefined,
+  cache: Map<string, string>
+): Promise<string> {
+  const matches = findImagePaths(text)
+  if (matches.length === 0) return text
+  // Rewrite from the end so earlier indices stay valid.
+  let rewritten = text
+  for (let idx = matches.length - 1; idx >= 0; idx -= 1) {
+    const match = matches[idx]
+    let transcribed: string | null = null
+    if (cache.has(match.path)) {
+      transcribed = cache.get(match.path) ?? null
+    } else {
+      try {
+        const ref = await readImageRef(fs, attachments, match.path, signal)
+        if (ref !== undefined) {
+          const result = await callVision(llm, cfg, cfg.instruction, [ref], signal)
+          transcribed = result.ok ? result.text : null
+          if (transcribed !== null) {
+            cache.set(match.path, transcribed)
+            if (cache.size > 256) {
+              const first = cache.keys().next().value
+              if (first !== undefined) cache.delete(first)
+            }
+          }
+        }
+      } catch {
+        transcribed = null // unreadable path stays untouched
+      }
+    }
+    if (transcribed !== null) {
+      rewritten =
+        rewritten.slice(0, match.end) +
+        `\n【图片转述】${transcribed}` +
+        rewritten.slice(match.end)
+    }
+  }
+  return rewritten
 }

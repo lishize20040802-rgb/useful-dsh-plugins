@@ -6,6 +6,13 @@ import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
 var VISION_SYSTEM = "\u4F60\u662F\u4E00\u4E2A\u591A\u6A21\u6001\u89C6\u89C9\u8BC6\u522B\u4EE3\u7406\u3002\u7528\u6237\u4F1A\u7ED9\u4F60\u4E00\u5F20\u56FE\u7247\u548C\u4E00\u4E2A\u6307\u4EE4\uFF0C\u4F60\u9700\u8981\u76F4\u63A5\u57FA\u4E8E\u56FE\u7247\u5185\u5BB9\u7ED9\u51FA\u51C6\u786E\u3001\u5B8C\u6574\u7684\u56DE\u7B54\u3002\u53EA\u8F93\u51FA\u8BC6\u522B\u7ED3\u8BBA\u672C\u8EAB\uFF0C\u4E0D\u8981\u81EA\u6211\u4ECB\u7ECD\u3001\u4E0D\u8981\u89E3\u91CA\u4F60\u7684\u673A\u5236\u3002";
 var TRANSCRIBE_FAILED_TEXT = "[\u56FE\u7247\u81EA\u52A8\u8F6C\u8FF0\u5931\u8D25\uFF1A\u89C6\u89C9\u6A21\u578B\u8C03\u7528\u51FA\u9519\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF0C\u6216\u628A\u56FE\u7247\u4FDD\u5B58\u4E3A\u6587\u4EF6\u540E\u8BA9\u6211\u7528 vision \u5DE5\u5177\u8BFB\u53D6\u3002]";
+var IMAGE_EXTENSIONS = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif"
+};
 async function callVision(llm, cfg, instruction, refs, signal) {
   const parts = [];
   let finished;
@@ -63,6 +70,71 @@ async function transcribeBlocks(llm, cfg, blocks, signal, cache) {
     out.push({ type: "text", text: text !== null ? `\u3010\u56FE\u7247\u8F6C\u8FF0\u3011${text}` : TRANSCRIBE_FAILED_TEXT });
   }
   return out;
+}
+function findImagePaths(text) {
+  const out = [];
+  const re = /(`)?([A-Za-z]:[\\/][^\s`"'<>|*?:]+|~[\\/][^\s`"'<>|*?:]+)(\.png|\.jpe?g|\.webp|\.gif)(`)?/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const leadingTick = m[1] !== void 0;
+    const trailingTick = m[4] !== void 0;
+    out.push({
+      path: m[2] + m[3],
+      // path without the backticks
+      start: m.index + (leadingTick ? 1 : 0),
+      end: m.index + m[0].length - (trailingTick ? 1 : 0)
+    });
+  }
+  return out;
+}
+async function readImageRef(fs, attachments, path, signal) {
+  const dot = path.lastIndexOf(".");
+  const ext = dot >= 0 ? path.slice(dot).toLowerCase() : "";
+  const mediaType = IMAGE_EXTENSIONS[ext];
+  if (mediaType === void 0) return void 0;
+  if (!attachments.imageLimits.mediaTypes.includes(mediaType)) return void 0;
+  const target = await fs.resolve(path);
+  const byteCap = Math.min(
+    attachments.imageLimits.maxImageBytes ?? Number.POSITIVE_INFINITY,
+    attachments.imageLimits.maxMessageImageBytes ?? Number.POSITIVE_INFINITY
+  );
+  const data = await fs.readBytes(target, signal, byteCap);
+  const i = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return attachments.saveImage({ data, mediaType, name: i >= 0 ? path.slice(i + 1) : path });
+}
+async function transcribeTextPaths(llm, cfg, fs, attachments, text, signal, cache) {
+  const matches = findImagePaths(text);
+  if (matches.length === 0) return text;
+  let rewritten = text;
+  for (let idx = matches.length - 1; idx >= 0; idx -= 1) {
+    const match = matches[idx];
+    let transcribed = null;
+    if (cache.has(match.path)) {
+      transcribed = cache.get(match.path) ?? null;
+    } else {
+      try {
+        const ref = await readImageRef(fs, attachments, match.path, signal);
+        if (ref !== void 0) {
+          const result = await callVision(llm, cfg, cfg.instruction, [ref], signal);
+          transcribed = result.ok ? result.text : null;
+          if (transcribed !== null) {
+            cache.set(match.path, transcribed);
+            if (cache.size > 256) {
+              const first = cache.keys().next().value;
+              if (first !== void 0) cache.delete(first);
+            }
+          }
+        }
+      } catch {
+        transcribed = null;
+      }
+    }
+    if (transcribed !== null) {
+      rewritten = rewritten.slice(0, match.end) + `
+\u3010\u56FE\u7247\u8F6C\u8FF0\u3011${transcribed}` + rewritten.slice(match.end);
+    }
+  }
+  return rewritten;
 }
 
 // src/index.ts
@@ -137,17 +209,32 @@ function apply(ctx, rawConfig) {
   if (cfg.transcribeImages) {
     ctx.on("agent/pre-step", async (payload, next) => {
       const messages = payload.messages ?? [];
-      if (!messages.some((message) => hasImageBlock(message.content))) return next();
+      const hasImage = messages.some((message) => hasImageBlock(message.content));
+      const hasTextPath = messages.some(
+        (message) => (message.content ?? []).some((block) => block.type === "text" && findImagePaths(block.text).length > 0)
+      );
+      if (!hasImage && !hasTextPath) return next();
       if (payload.signal?.aborted) return next();
       try {
         const out = [];
         for (const message of messages) {
           const content = message.content;
-          if (!hasImageBlock(content)) {
+          if (!hasImageBlock(content) && !(content ?? []).some((block) => block.type === "text" && findImagePaths(block.text).length > 0)) {
             out.push(message);
             continue;
           }
-          const blocks = await transcribeBlocks(llm, cfg, content, payload.signal, transcriptCache);
+          const blocks = [];
+          for (const block of content) {
+            if (block.type === "image") {
+              const transcribed = await transcribeBlocks(llm, cfg, [block], payload.signal, transcriptCache);
+              blocks.push(...transcribed);
+            } else if (block.type === "text") {
+              const rewritten = await transcribeTextPaths(llm, cfg, ctx.fs, attachments, block.text, payload.signal, transcriptCache);
+              blocks.push({ ...block, text: rewritten });
+            } else {
+              blocks.push(block);
+            }
+          }
           out.push({ ...message, content: blocks });
         }
         return { kind: "enter", messages: out };
@@ -156,10 +243,41 @@ function apply(ctx, rawConfig) {
       }
     });
   }
+  ctx.on("tools/post-execute", async (exec, result, next) => {
+    if (exec?.name !== "read_image" || result?.isError) return next();
+    if (!exec.agent) return next();
+    let imageCapable = false;
+    try {
+      const info = await llm.resolveModelInfo(exec.agent.options?.provider, exec.agent.options?.model);
+      imageCapable = Boolean(info?.inputModalities && info.inputModalities.includes("image"));
+    } catch {
+      imageCapable = false;
+    }
+    if (imageCapable) return next();
+    const imageBlock = (result.content ?? []).find((b) => b?.type === "image");
+    const imageValue = result.value?.image;
+    if (!imageBlock || !imageValue) return next();
+    const ref = {
+      attachmentId: imageValue.attachmentId,
+      mediaType: imageValue.mediaType,
+      bytes: imageValue.bytes,
+      width: imageValue.width,
+      height: imageValue.height
+    };
+    const outcome = await callVision(llm, cfg, cfg.instruction, [ref], exec.signal);
+    const transcribed = outcome.ok ? outcome.text : null;
+    return {
+      kind: "accept",
+      content: [{
+        type: "text",
+        text: transcribed !== null ? `\u3010\u56FE\u7247\u8F6C\u8FF0\u3011${transcribed}` : "\u3010\u56FE\u7247\u8F6C\u8FF0\u5931\u8D25\uFF1A\u89C6\u89C9\u6A21\u578B\u8C03\u7528\u51FA\u9519\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002\u3011"
+      }]
+    };
+  });
   ctx.systemPrompt.section({
     name: "tool:vision",
     order: 96,
-    text: `\u672C\u4F1A\u8BDD\u7531 dsh-plugin-vision-reader \u63D0\u4F9B\u56FE\u7247\u80FD\u529B\uFF0C\u89C6\u89C9\u6A21\u578B\uFF1A${cfg.provider}/${cfg.model}\u3002\u9047\u5230\u56FE\u7247\u6587\u4EF6\u8DEF\u5F84\u65F6\uFF0C\u4E00\u5F8B\u5148\u7528 vision \u5DE5\u5177\uFF08file_path \u6307\u5411\u5355\u5F20\u56FE\u7247\uFF0C\u591A\u5F20\u7528 file_paths \u4F20\u8DEF\u5F84\u6570\u7EC4\uFF0Cinstruction \u8BF4\u660E\u8981\u770B\u4EC0\u4E48\uFF09\u53D6\u5F97\u8BC6\u522B\u6587\u672C\u540E\u518D\u7EE7\u7EED\uFF1B\u4E0D\u8981\u5C1D\u8BD5\u7528 read_image \u6216\u76F4\u63A5\u731C\u6D4B\u56FE\u7247\u5185\u5BB9\u3002\u7528\u6237\u76F4\u63A5\u7C98\u8D34\u8FDB\u5BF9\u8BDD\u7684\u56FE\u7247\u4F1A\u88AB\u81EA\u52A8\u8F6C\u8FF0\u6210\u6587\u5B57\uFF0C\u6A21\u578B\u770B\u5230\u4EE5\u3010\u56FE\u7247\u8F6C\u8FF0\u3011\u5F00\u5934\u7684\u6587\u672C\u5373\u4E3A\u8F6C\u8FF0\u7ED3\u679C\u3002`
+    text: `\u672C\u4F1A\u8BDD\u7531 dsh-plugin-vision-reader \u63D0\u4F9B\u56FE\u7247\u80FD\u529B\uFF0C\u89C6\u89C9\u6A21\u578B\uFF1A${cfg.provider}/${cfg.model}\u3002\u9047\u5230\u56FE\u7247\u6587\u4EF6\u8DEF\u5F84\u65F6\uFF0C\u4E00\u5F8B\u5148\u7528 vision \u5DE5\u5177\uFF08file_path \u6307\u5411\u5355\u5F20\u56FE\u7247\uFF0C\u591A\u5F20\u7528 file_paths \u4F20\u8DEF\u5F84\u6570\u7EC4\uFF0Cinstruction \u8BF4\u660E\u8981\u770B\u4EC0\u4E48\uFF09\u53D6\u5F97\u8BC6\u522B\u6587\u672C\u540E\u518D\u7EE7\u7EED\uFF1B\u4E0D\u8981\u5C1D\u8BD5\u7528 read_image \u6216\u76F4\u63A5\u731C\u6D4B\u56FE\u7247\u5185\u5BB9\u3002\u7528\u6237\u4E0A\u4F20\u6216\u7C98\u8D34\u8FDB\u5BF9\u8BDD\u7684\u56FE\u7247\u4F1A\u88AB\u81EA\u52A8\u8F6C\u8FF0\u6210\u6587\u5B57\uFF0C\u6A21\u578B\u770B\u5230\u4EE5\u3010\u56FE\u7247\u8F6C\u8FF0\u3011\u5F00\u5934\u7684\u6587\u672C\u5373\u4E3A\u8F6C\u8FF0\u7ED3\u679C\u3002`
   });
   ctx.tools.register(defineTool({
     name: "vision",
@@ -213,7 +331,7 @@ ${String(value.text)}
       for (const path of paths) {
         const dot = path.lastIndexOf(".");
         const ext = dot >= 0 ? path.slice(dot).toLowerCase() : "";
-        const mediaType = IMAGE_EXTENSIONS[ext];
+        const mediaType = IMAGE_EXTENSIONS2[ext];
         if (!mediaType) throw new Error(`vision: unsupported image format for "${path}" (PNG/JPEG/WebP/GIF only)`);
         if (!attachments.imageLimits.mediaTypes.includes(mediaType)) {
           throw new Error(`vision: ${mediaType} images are not accepted by this deployment`);
@@ -236,7 +354,7 @@ ${String(value.text)}
     }
   }));
 }
-var IMAGE_EXTENSIONS = {
+var IMAGE_EXTENSIONS2 = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -251,8 +369,11 @@ export {
   Config,
   apply,
   callVision,
+  findImagePaths,
   inject,
   name,
   normalizeConfig,
-  transcribeBlocks
+  readImageRef,
+  transcribeBlocks,
+  transcribeTextPaths
 };
