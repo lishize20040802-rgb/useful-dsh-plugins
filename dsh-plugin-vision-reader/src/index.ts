@@ -41,6 +41,7 @@ import {
   transcribeTextPaths,
   findImagePaths,
   readImageRef,
+  installAdmissionShim,
   type ImageRef as VisionImageRef,
   type VisionLlm,
   type VisionResult
@@ -49,7 +50,7 @@ import {
 // Re-export the pure vision logic so tests and consumers can exercise it
 // without a running host (same pattern as official plugins exposing helpers).
 export type { ImageRef as VisionImageRef, VisionLlm, VisionResult } from './vision.js'
-export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef } from './vision.js'
+export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef, installAdmissionShim } from './vision.js'
 
 /** Cordis plugin name — must match the row id in cordis.patch.yml. */
 export const name = 'vision-reader'
@@ -163,6 +164,16 @@ export function apply(ctx: Context, rawConfig: unknown): void {
   if (!llm) throw new Error('vision-reader: no llm service mounted')
   const attachments = ctx.get('attachments') as AttachmentStore | undefined
   if (!attachments) throw new Error('vision-reader: no attachment service is mounted')
+
+  // ── Feature E: host image-admission relaxation ───────────────────────────
+  // The host's session.prompt preflight refuses image messages for text-only
+  // main models (MODEL_DOES_NOT_SUPPORT_IMAGES). Patch resolveModelInfo for
+  // the configured text-only route so image messages are admitted; the
+  // pre-step transcription then turns them into text before the main model
+  // sees anything. Installed synchronously (not via effect) so the patch is
+  // live before any prompt arrives; restored on plugin disposal.
+  const disposeAdmission = installAdmissionShim(ctx, cfg)
+  ctx.effect(() => disposeAdmission, 'vision-reader: admission shim')
 
   // ── Feature C: dynamic read_image hiding for text-only main models ──────
   // tools.restrict requires an agent-scoped context; hanging the restriction

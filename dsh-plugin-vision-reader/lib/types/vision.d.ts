@@ -1,5 +1,6 @@
-import type { ContentBlock, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm';
+import type { ContentBlock, GenerateOptions, StreamChunk, LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm';
 import type { ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment';
+import type { Context } from '@deepseek-ai/cordis';
 import type { VisionReaderConfig } from './index.js';
 /** The durable attachment reference a vision call carries. */
 export type ImageRef = ImageAttachmentRef;
@@ -104,3 +105,15 @@ export declare function readImageRef(fs: VisionFs, attachments: VisionAttachment
  * @returns the rewritten text, or the original when no image path was found.
  */
 export declare function transcribeTextPaths(llm: VisionLlm, cfg: VisionReaderConfig, fs: VisionFs, attachments: VisionAttachments, text: string, signal: AbortSignal | undefined, cache: Map<string, string>): Promise<string>;
+/** The llm service face the admission shim patches. */
+export interface AdmissionLlm {
+    resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;
+}
+/**
+ * Install the admission shim on the real `LlmRuntime` instance behind `ctx.llm`.
+ * @param ctx - plugin context carrying the live `llm` service.
+ * @param cfg - resolved plugin configuration (provider/model are the routes
+ *   whose `resolveModelInfo` result is relaxed).
+ * @returns a disposer restoring the original method.
+ */
+export declare function installAdmissionShim(ctx: Context, cfg: VisionReaderConfig): () => void;

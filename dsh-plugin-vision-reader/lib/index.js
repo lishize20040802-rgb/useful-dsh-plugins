@@ -4,6 +4,7 @@ import { defineTool } from "@deepseek-ai/dsh-tools";
 
 // src/vision.ts
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
+import { symbols } from "@deepseek-ai/cordis";
 var VISION_SYSTEM = "\u4F60\u662F\u4E00\u4E2A\u591A\u6A21\u6001\u89C6\u89C9\u8BC6\u522B\u4EE3\u7406\u3002\u7528\u6237\u4F1A\u7ED9\u4F60\u4E00\u5F20\u56FE\u7247\u548C\u4E00\u4E2A\u6307\u4EE4\uFF0C\u4F60\u9700\u8981\u76F4\u63A5\u57FA\u4E8E\u56FE\u7247\u5185\u5BB9\u7ED9\u51FA\u51C6\u786E\u3001\u5B8C\u6574\u7684\u56DE\u7B54\u3002\u53EA\u8F93\u51FA\u8BC6\u522B\u7ED3\u8BBA\u672C\u8EAB\uFF0C\u4E0D\u8981\u81EA\u6211\u4ECB\u7ECD\u3001\u4E0D\u8981\u89E3\u91CA\u4F60\u7684\u673A\u5236\u3002";
 var TRANSCRIBE_FAILED_TEXT = "[\u56FE\u7247\u81EA\u52A8\u8F6C\u8FF0\u5931\u8D25\uFF1A\u89C6\u89C9\u6A21\u578B\u8C03\u7528\u51FA\u9519\u3002\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF0C\u6216\u628A\u56FE\u7247\u4FDD\u5B58\u4E3A\u6587\u4EF6\u540E\u8BA9\u6211\u7528 vision \u5DE5\u5177\u8BFB\u53D6\u3002]";
 var IMAGE_EXTENSIONS = {
@@ -136,6 +137,28 @@ async function transcribeTextPaths(llm, cfg, fs, attachments, text, signal, cach
   }
   return rewritten;
 }
+function unwrapService(value) {
+  const candidate = value;
+  return candidate[symbols.original] ?? value;
+}
+function installAdmissionShim(ctx, cfg) {
+  const raw = ctx.llm;
+  const llm = unwrapService(raw);
+  if (llm === void 0 || typeof llm.resolveModelInfo !== "function") return () => {
+  };
+  const original = llm.resolveModelInfo.bind(llm);
+  const wrapped = async (provider, model, signal) => {
+    const info = await original(provider, model, signal);
+    if (ctx.get("attachments") === void 0) return info;
+    if (info.inputModalities === void 0 || info.inputModalities.includes("image")) return info;
+    const { inputModalities: _dropped, ...rest } = info;
+    return rest;
+  };
+  llm.resolveModelInfo = wrapped;
+  return () => {
+    if (llm.resolveModelInfo === wrapped) llm.resolveModelInfo = original;
+  };
+}
 
 // src/index.ts
 var name = "vision-reader";
@@ -194,6 +217,8 @@ function apply(ctx, rawConfig) {
   if (!llm) throw new Error("vision-reader: no llm service mounted");
   const attachments = ctx.get("attachments");
   if (!attachments) throw new Error("vision-reader: no attachment service is mounted");
+  const disposeAdmission = installAdmissionShim(ctx, cfg);
+  ctx.effect(() => disposeAdmission, "vision-reader: admission shim");
   const hiding = { denied: /* @__PURE__ */ new Map() };
   ctx.on("agent/created", (payload) => {
     const agent = payload.agent;
@@ -371,6 +396,7 @@ export {
   callVision,
   findImagePaths,
   inject,
+  installAdmissionShim,
   name,
   normalizeConfig,
   readImageRef,

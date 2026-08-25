@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 export type { ImageRef as VisionImageRef, VisionLlm, VisionResult } from './vision.js';
-export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef } from './vision.js';
+export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef, installAdmissionShim } from './vision.js';
 /** Cordis plugin name — must match the row id in cordis.patch.yml. */
 export declare const name = "vision-reader";
 /** Services required by the node half. */

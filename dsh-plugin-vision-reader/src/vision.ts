@@ -3,9 +3,11 @@
 // Everything that talks to the multimodal model lives here, separated from
 // the cordis plugin contract so the transcription and tool flows share one
 // implementation and the pure parts can be tested without a running host.
-import type { ContentBlock, FinishReason, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, FinishReason, GenerateOptions, StreamChunk, LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
+import { symbols } from '@deepseek-ai/cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import type { VisionReaderConfig } from './index.js'
 
 /** System prompt for the vision call: describe only, no mechanism chatter. */
@@ -265,4 +267,65 @@ export async function transcribeTextPaths(
     }
   }
   return rewritten
+}
+
+// ── Host image-admission shim ─────────────────────────────────────────────
+// The host's `session.prompt` preflight refuses image messages for models
+// whose declared input modalities exclude `image`, and there is no plugin
+// seam on that gate. This wrapper reports `inputModalities: undefined`
+// (unknown) for the configured text-only routes while an attachment store is
+// present, so the gate admits the image message; the pre-step transcription
+// then turns the image into text before the main model sees it. Vision-capable
+// models and unknown-capability routes pass through untouched.
+//
+// Cordis wraps every service read in a traceable proxy whose `get` trap wraps
+// method reads, so assignments through `ctx.llm` never stick; the proxy
+// exposes its target under `symbols.original`.
+
+/** Reach the real service instance behind the context's traceable proxy. */
+function unwrapService<T>(value: T): T {
+  const candidate = value as { [symbols.original]?: T }
+  return (candidate[symbols.original] ?? value) as T
+}
+
+/** The llm service face the admission shim patches. */
+export interface AdmissionLlm {
+  resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>
+}
+
+/**
+ * Install the admission shim on the real `LlmRuntime` instance behind `ctx.llm`.
+ * @param ctx - plugin context carrying the live `llm` service.
+ * @param cfg - resolved plugin configuration (provider/model are the routes
+ *   whose `resolveModelInfo` result is relaxed).
+ * @returns a disposer restoring the original method.
+ */
+export function installAdmissionShim(ctx: Context, cfg: VisionReaderConfig): () => void {
+  // 用属性访问（ctx.llm）而非 ctx.get('llm')：cordis 对二者的代理包装不同，
+  // apiproxy 通过 ctx.llm 读取，因此这里必须 patch 同一个属性访问得到的实例。
+  const raw = (ctx as unknown as { llm?: AdmissionLlm & { [symbols.original]?: AdmissionLlm } }).llm
+  const llm = unwrapService(raw)
+  if (llm === undefined || typeof llm.resolveModelInfo !== 'function') return () => {}
+  const original = llm.resolveModelInfo.bind(llm)
+  const wrapped = (async (
+    provider: string,
+    model: string,
+    signal?: AbortSignal
+  ): Promise<LlmResolvedModelInfo> => {
+    const info = await original(provider, model, signal)
+    // Without a durable store there is no path to transcribe through, so keep
+    // the host gate meaningful: only relax when an attachment store exists.
+    if (ctx.get('attachments') === undefined) return info
+    // Relax EVERY route that does not declare image input: the host gate
+    // (session.prompt) checks the MAIN model's modalities, and the pre-step
+    // transcription turns any admitted image into text before that main model
+    // sees it. Vision-capable models keep their modalities untouched.
+    if (info.inputModalities === undefined || info.inputModalities.includes('image')) return info
+    const { inputModalities: _dropped, ...rest } = info
+    return rest as LlmResolvedModelInfo
+  }) as typeof llm.resolveModelInfo
+  llm.resolveModelInfo = wrapped
+  return () => {
+    if (llm.resolveModelInfo === wrapped) llm.resolveModelInfo = original
+  }
 }

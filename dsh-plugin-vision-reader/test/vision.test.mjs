@@ -6,7 +6,7 @@
 // re-calling the model for the same attachment id.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { callVision, transcribeBlocks, findImagePaths, readImageRef, transcribeTextPaths } from '../lib/index.js'
+import { callVision, transcribeBlocks, findImagePaths, readImageRef, transcribeTextPaths, installAdmissionShim } from '../lib/index.js'
 
 /** A fake LLM service face that returns canned text per call. */
 function fakeLlm(text = '一张测试图片') {
@@ -144,4 +144,50 @@ test('readImageRef returns undefined for non-image paths', async () => {
   const attFace = { imageLimits: { mediaTypes: ['image/png'] }, saveImage: async () => ({}) }
   const ref = await readImageRef(fsFace, attFace, 'D:\\a\\note.txt', undefined)
   assert.equal(ref, undefined)
+})
+
+// ── admission shim (host gate relaxation for text-only main models) ───────
+
+/** Build a fake cordis ctx whose `.llm` exposes services and symbols.original. */
+function fakeCtx(services) {
+  const target = { llm: services.llm }
+  return {
+    llm: { [Symbol.for('cordis.original')]: target.llm },
+    get: (name) => (name === 'attachments' ? services[name] : undefined),
+  }
+}
+
+test('admission shim drops inputModalities for the configured text-only route', async () => {
+  const original = async () => ({ provider: 'deepseek-official', model: 'deepseek-v4-flash', inputModalities: ['text'] })
+  const llm = { resolveModelInfo: original }
+  const ctx = fakeCtx({ llm, attachments: {} })
+  const cfg = { provider: 'deepseek-official', model: 'deepseek-v4-flash', transcribeImages: true, autoHideReadImage: true, instruction: 'x' }
+  const dispose = installAdmissionShim(ctx, cfg)
+  try {
+    // 主模型（纯文本）被放行：inputModalities 移除
+    const info = await ctx.llm[Symbol.for('cordis.original')].resolveModelInfo('deepseek-official', 'deepseek-v4-flash')
+    assert.equal(info.inputModalities, undefined)
+    // 其他纯文本模型也被放行（shim 不限定具体模型）
+    const other = await ctx.llm[Symbol.for('cordis.original')].resolveModelInfo('other-provider', 'other-text-model')
+    assert.equal(other.inputModalities, undefined)
+  } finally {
+    dispose()
+  }
+  // 恢复后原样返回
+  const after = await ctx.llm[Symbol.for('cordis.original')].resolveModelInfo('deepseek-official', 'deepseek-v4-flash')
+  assert.deepEqual(after.inputModalities, ['text'])
+})
+
+test('admission shim leaves vision-capable routes untouched', async () => {
+  const original = async () => ({ provider: 'deepseek-official', model: 'deepseek-v4-flash-vision-exp', inputModalities: ['text', 'image'] })
+  const llm = { resolveModelInfo: original }
+  const ctx = fakeCtx({ llm, attachments: {} })
+  const cfg = { provider: 'deepseek-official', model: 'deepseek-v4-flash', transcribeImages: true, autoHideReadImage: true, instruction: 'x' }
+  const dispose = installAdmissionShim(ctx, cfg)
+  try {
+    const info = await ctx.llm[Symbol.for('cordis.original')].resolveModelInfo('deepseek-official', 'deepseek-v4-flash-vision-exp')
+    assert.deepEqual(info.inputModalities, ['text', 'image']) // 视觉模型不变
+  } finally {
+    dispose()
+  }
 })
