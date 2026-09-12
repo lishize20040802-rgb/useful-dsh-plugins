@@ -1,6 +1,6 @@
 {
   "name": "useful-dsh-plugins",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Meta package: one-command installation of useful community plugins for DeepSeek Harness — upload button, document reader, vision (image reading via DeepSeek's built-in multimodal model), plugin manager, and desktop launcher.",
   "keywords": [
     "deepseek",
@@ -37,8 +37,6 @@
   "dependencies": {
     "dsh-upload-button": "^0.3.1",
     "dsh-plugin-doc-reader": "^0.1.3",
-    "dsh-plugin-vision-reader": "^0.1.3",
-    "dsh-desktop-config": "^0.1.2",
     "useful-dsh-plugin-manager": "^0.2.1"
   },
   "scripts": {

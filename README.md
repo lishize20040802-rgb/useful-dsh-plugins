@@ -12,8 +12,8 @@ Drop-in plugins that work together: upload a file in the chat composer → let t
 |---|---|---|
 | [`dsh-upload-button`](./dsh-upload-button) | dual-face (host + browser) | A borderless 📎 button in the composer toolbar. Uploaded files appear as floating, Microsoft-classic colored cards above the input; pressing the ordinary Send button attaches their saved paths to the outgoing message automatically (native input-machine occurrence pipeline — zero send interception); message paths render as compact file cards (click to open). |
 | [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | The model-facing `read_document` tool: reads text, PDF, DOCX and XLSX files through the harness filesystem backend (`ctx.fs`), with the built-in read tool's line-window semantics. **Text only — no image recognition (OCR); scanned PDFs yield no text.** |
-| [`dsh-plugin-vision-reader`](./dsh-plugin-vision-reader) | dual-face (host + browser) | Lets **text-only main models read images**: image content is routed through DeepSeek's built-in multimodal model (`deepseek-v4-flash-vision-exp`) and returned as plain text — **no extra API key required** (shares the main model's `DEEPSEEK_API_KEY`). Three capabilities: a `vision` tool, auto-transcription of pasted images, and automatic `read_image` hiding while the main model is text-only. |
-| [`dsh-desktop-config`](./dsh-desktop-launcher) | dual-face (host + browser) | Desktop launcher configuration: port, bind host, auto-open — owned as a settings namespace (`desktop-launcher`) in `$DSH_HOME/settings.yaml`, shared between the Electron desktop shell and the web settings page. |
+| [`dsh-plugin-vision-reader`](./dsh-plugin-vision-reader) *(local use, not published)* | dual-face (host + browser) | Images go **straight to the main model** untouched — no description in between. Pasted images are also persisted to a local file and the message carries the path, so the same picture can be re-read at any later point. Adds a `vision` tool for an independent second opinion from DeepSeek's built-in multimodal model (`deepseek-v4-flash-vision-exp`); **no extra API key required** (shares the main model's `DEEPSEEK_API_KEY`). |
+| [`dsh-desktop-config`](./dsh-desktop-launcher) *(local use, not published)* | dual-face (host + browser) | Desktop launcher configuration: port, bind host, auto-open — owned as a settings namespace (`desktop-launcher`) in `$DSH_HOME/settings.yaml`, shared between the Electron desktop shell and the web settings page. |
 | [`useful-dsh-plugin-manager`](./useful-dsh-plugin-manager) | dual-face (host + browser) | A visual plugin manager: a Manage tab in Web Settings → Plugins — disable/enable any plugin row, check and update out-of-tree packages, **one-click repair of every row (official packages included, restored from the registry tarball)**, and restore-all. |
 
 ## Installation
@@ -32,10 +32,15 @@ Or install the plugins individually:
 ```sh
 dsh plugin --profile web add dsh-upload-button@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add dsh-plugin-doc-reader@latest --config.minimumReleaseAge=0
-dsh plugin --profile web add dsh-plugin-vision-reader@latest --config.minimumReleaseAge=0
-dsh plugin --profile web add dsh-desktop-config@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add useful-dsh-plugin-manager@latest --config.minimumReleaseAge=0
 # restart dsh web
+```
+
+`dsh-plugin-vision-reader` and `dsh-desktop-config` are local-use plugins and are **not published to npm**; install them from this repo:
+
+```sh
+dsh plugin --profile web add link:<repo>/dsh-plugin-vision-reader
+dsh plugin --profile web add link:<repo>/dsh-desktop-launcher
 ```
 
 All packages declare their cordis bundle patch (`dsh.bundle`), so `dsh plugin` registers them into `dsh.profile.bundles` automatically.
