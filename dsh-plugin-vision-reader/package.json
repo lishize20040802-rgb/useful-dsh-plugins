@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-vision-reader",
-  "version": "0.1.3",
-  "description": "DeepSeek Harness host+client plugin: lets text-only main models read images by routing vision through DeepSeek's built-in multimodal model (deepseek-v4-flash-vision-exp). No extra API key required.",
+  "version": "0.2.0",
+  "description": "DeepSeek Harness host+client plugin: images go straight to the main model untouched, and pasted images are persisted to local files so the same picture can be re-read at any later point. Adds a `vision` tool for an independent second opinion from DeepSeek's built-in multimodal model (deepseek-v4-flash-vision-exp). No extra API key required.",
   "keywords": [
     "deepseek",
     "harness",

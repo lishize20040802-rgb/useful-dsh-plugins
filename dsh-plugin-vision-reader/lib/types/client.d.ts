@@ -9,7 +9,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     }
 }
 /** Key union of every string this namespace owns. */
-export type VisionReaderLocaleKey = 'plugin.title' | 'plugin.description' | 'plugin.route' | 'plugin.routeValue' | 'plugin.features' | 'plugin.featureVision' | 'plugin.featureTranscribe' | 'plugin.featureHide' | 'plugin.hint';
+export type VisionReaderLocaleKey = 'plugin.title' | 'plugin.description' | 'plugin.route' | 'plugin.routeValue' | 'plugin.features' | 'plugin.featureVision' | 'plugin.featurePassthrough' | 'plugin.featurePersist' | 'plugin.hint';
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export declare const zh: Record<VisionReaderLocaleKey, string>;
 /** English dictionary (checked complete against zh). */

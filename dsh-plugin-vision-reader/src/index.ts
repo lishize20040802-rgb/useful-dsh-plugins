@@ -1,30 +1,24 @@
 // dsh-plugin-vision-reader — node half (host side).
 //
-// Gives text-only main models (e.g. deepseek-v4-flash) image-reading ability
-// by routing every image through DeepSeek's built-in multimodal model
-// (`deepseek-official` / `deepseek-v4-flash-vision-exp`). No extra API key:
-// the vision call uses the same DEEPSEEK_API_KEY the main model uses.
+// Images go straight to the main model. This plugin does NOT describe images
+// on the main model's behalf, and it does not transcribe them into text — a
+// second-hand description is strictly worse than the picture itself for a
+// model that can see. What it adds on top of the built-in image support is
+// durability: every pasted image is persisted to a local file, and the message
+// carries that path so the model can re-read the same picture at any later
+// point (放大、复核细节、换个 instruction 再看一遍).
 //
-// Four features:
-//   A. `vision` tool — the model calls it with image path(s); the plugin
-//      reads the files, persists them as attachments, and asks the built-in
-//      multimodal model to describe/answer, returning plain text.
-//   B. Message transcription — every image reaching a TEXT-ONLY main model is
-//      turned into text first: `image` blocks (pasted images) AND image paths
-//      inside text blocks (files uploaded via dsh-upload-button arrive as path
-//      text, e.g. `C:\...\uploads\<12hex>-photo.png`) are transcribed. The
-//      image never enters the main conversation context.
-//      Route-aware: when the main model itself accepts image input, the image
-//      block is passed through untouched (the model looks at the picture at
-//      full fidelity) and is additionally persisted to the inbox dir so the
-//      model can re-read it later; no transcription happens.
-//   C. `read_image` redirection — when a text-only main model calls the
-//      built-in `read_image` tool, its image result is transcribed to text
-//      before the main model sees it, so the call never fails on modality.
-//   D. Dynamic `read_image` hiding — in a text-only main-model session the
-//      built-in `read_image` tool is hidden from the tool list and the model
-//      is steered to `vision` instead; switching to a multimodal main model
-//      restores `read_image` automatically.
+// What it does:
+//   A. Pass-through — the `agent/pre-step` hook keeps every `image` block
+//      verbatim and appends a `【图片已保存】<path>` note for the persisted
+//      copy. Text blocks that merely mention image paths are left alone: the
+//      main model opens those paths itself.
+//   B. `vision` tool — the model calls it with image path(s); the plugin reads
+//      the files, persists them as attachments, and asks DeepSeek's built-in
+//      multimodal model (`deepseek-official` / `deepseek-v4-flash-vision-exp`)
+//      for a description, returning plain text. Used for an independent second
+//      opinion from a different model — no extra API key, it shares the main
+//      model's DEEPSEEK_API_KEY.
 //
 // Everything uses host services only (tools/fs/systemPrompt/llm/attachments)
 // plus node builtins; zero external runtime dependencies.
@@ -45,16 +39,12 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 // browser card registers and is then silently never drawn.
 import type {} from '@deepseek-ai/dsh-settings'
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
-import type { ContentBlock, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, StreamChunk, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
-import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import {
-  transcribeBlocks,
   callVision,
-  transcribeTextPaths,
-  findImagePaths,
-  readImageRef,
-  installAdmissionShim,
+  hasAnyImage,
+  planPreStep,
   type ImageRef as VisionImageRef,
   type PersistImage,
   type VisionLlm,
@@ -64,7 +54,7 @@ import {
 // Re-export the pure vision logic so tests and consumers can exercise it
 // without a running host (same pattern as official plugins exposing helpers).
 export type { ImageRef as VisionImageRef, PersistImage, VisionLlm, VisionResult } from './vision.js'
-export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef, installAdmissionShim } from './vision.js'
+export { callVision, hasAnyImage, hasImageBlock, planPreStep, SAVED_IMAGE_PREFIX } from './vision.js'
 
 /** Cordis plugin name — must match the row id in cordis.patch.yml. */
 export const name = 'vision-reader'
@@ -85,10 +75,6 @@ export interface VisionReaderConfig {
   provider: string
   /** Multimodal model id on that provider. */
   model: string
-  /** Auto-transcribe pasted images before they reach the main model. */
-  transcribeImages: boolean
-  /** Hide the built-in read_image tool while the main model is text-only. */
-  autoHideReadImage: boolean
   /** Optional instruction override used when the model gives none. */
   instruction: string
   /** Directory pasted images are persisted to (for repeated re-reading). */
@@ -98,8 +84,6 @@ export interface VisionReaderConfig {
 export const Config = z.object({
   provider: z.string().default(DEFAULT_PROVIDER),
   model: z.string().default(DEFAULT_MODEL),
-  transcribeImages: z.boolean().default(true),
-  autoHideReadImage: z.boolean().default(true),
   instruction: z.string().default(DEFAULT_INSTRUCTION),
   inboxDir: z.string().default('')
 })
@@ -126,8 +110,6 @@ export function normalizeConfig(raw: unknown): VisionReaderConfig {
   return {
     provider,
     model,
-    transcribeImages: config.transcribeImages !== false,
-    autoHideReadImage: config.autoHideReadImage !== false,
     instruction: typeof config.instruction === 'string' && config.instruction.trim()
       ? config.instruction.trim()
       : DEFAULT_INSTRUCTION,
@@ -178,83 +160,10 @@ export async function persistImageFile(
   return dest
 }
 
-/** Whether a message content array carries at least one image block. */
-function hasImageBlock(content: unknown): boolean {
-  return Array.isArray(content) && content.some((block) => block && block.type === 'image')
-}
-
-/** The plugin's per-agent read_image-hiding bookkeeping. */
-interface ReadImageHiding {
-  /** Agents whose tool list currently hides read_image, and the disposer. */
-  denied: Map<Agent, () => void>
-}
-
-/**
- * Hide `read_image` on an agent whose main model cannot take image input, or
- * restore it when the route becomes image-capable. Resolution is async, so
- * the actual flip happens after the route probe settles.
- */
-function scheduleReadImageVisibility(
-  llm: {
-    resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<{ inputModalities?: string[] } | undefined>
-  },
-  hiding: ReadImageHiding,
-  agent: Agent,
-  provider: string | undefined,
-  model: string | undefined,
-  enabled: boolean
-): void {
-  if (!enabled || !agent || !provider || !model) return
-  const actx = agent.ctx
-  if (!actx) return
-  void llm.resolveModelInfo(provider, model)
-    .then((info) => Boolean(info?.inputModalities && info.inputModalities.includes('image')))
-    .catch(() => false) // fail-open: an unresolvable route hides nothing
-    .then((imageCapable) => {
-      const wantHide = !imageCapable
-      if (wantHide && !hiding.denied.has(agent)) {
-        try {
-          hiding.denied.set(agent, actx.tools.restrict({ deny: ['read_image'] }))
-        } catch {
-          // keep unset — the agent's tool list simply keeps read_image
-        }
-      } else if (!wantHide && hiding.denied.has(agent)) {
-        try {
-          hiding.denied.get(agent)?.()
-        } catch { /* noop */ }
-        hiding.denied.delete(agent)
-      }
-    })
-}
-
-/**
- * Whether the route this agent is using accepts image input. Uses the same
- * probe as the read_image visibility logic; the admission shim strips
- * `inputModalities` for text-only routes, so an unresolvable/undeclared route
- * reports `false` and keeps the transcription fallback.
- */
-async function isRouteImageCapable(
-  llm: {
-    resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<{ inputModalities?: string[] } | undefined>
-  },
-  agent: Agent
-): Promise<boolean> {
-  const provider = agent.options?.provider
-  const model = agent.options?.model
-  if (!provider || !model) return false
-  try {
-    const info = await llm.resolveModelInfo(provider, model)
-    return Boolean(info?.inputModalities && info.inputModalities.includes('image'))
-  } catch {
-    return false
-  }
-}
-
 export function apply(ctx: Context, rawConfig: unknown): void {
   const cfg = normalizeConfig(rawConfig)
   const llm = ctx.get('llm') as {
     stream(options: GenerateOptions): AsyncIterable<StreamChunk>
-    resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<{ inputModalities?: string[] } | undefined>
   }
   if (!llm) throw new Error('vision-reader: no llm service mounted')
   const attachments = ctx.get('attachments') as AttachmentStore | undefined
@@ -277,178 +186,62 @@ export function apply(ctx: Context, rawConfig: unknown): void {
     }
   })
 
-  // ── Feature E: host image-admission relaxation ───────────────────────────
-  // The host's session.prompt preflight refuses image messages for text-only
-  // main models (MODEL_DOES_NOT_SUPPORT_IMAGES). Patch resolveModelInfo for
-  // the configured text-only route so image messages are admitted; the
-  // pre-step transcription then turns them into text before the main model
-  // sees anything. Installed synchronously (not via effect) so the patch is
-  // live before any prompt arrives; restored on plugin disposal.
-  const disposeAdmission = installAdmissionShim(ctx, cfg)
-  ctx.effect(() => disposeAdmission, 'vision-reader: admission shim')
-
-  // ── Feature C: dynamic read_image hiding for text-only main models ──────
-  // tools.restrict requires an agent-scoped context; hanging the restriction
-  // on the agent ctx unwinds it automatically when the agent is disposed.
-  // The default model is probed at agent/created; live switches are tracked
-  // at agent/request.
-  const hiding: ReadImageHiding = { denied: new Map() }
-  ctx.on('agent/created', (payload: { agent: Agent }) => {
-    const agent = payload.agent
-    const options = agent.options ?? {}
-    scheduleReadImageVisibility(llm, hiding, agent, options.provider, options.model, cfg.autoHideReadImage)
-  })
-  ctx.on('agent/request', async (payload: { agent: Agent }, next: () => Promise<{ provider: string; model: string }>) => {
-    const resolved = await next()
-    scheduleReadImageVisibility(llm, hiding, payload.agent, resolved.provider, resolved.model, cfg.autoHideReadImage)
-    return resolved
-  })
-
-  // ── Feature B: pasted-image & path transcription (agent/pre-step) ───────
-  // Two image carriers are transcribed before the main model sees them:
-  //   1. `image` blocks (images pasted directly into a message);
-  //   2. image paths inside text blocks (files uploaded via dsh-upload-button
-  //      arrive as path text, e.g. `C:\...\uploads\<12hex>-photo.png`).
-  // Both keep their visual identity in the UI (image blocks and file cards
-  // survive) while the main model only ever sees text.
-  const transcriptCache = new Map<string, string>()
+  // ── Pass-through + durability (agent/pre-step) ──────────────────────────
+  // The one image route: every `image` block reaches the main model verbatim.
+  // What this hook adds is durability — the bytes are also written to a local
+  // file (content-addressed, cached per attachment id) and the message gains a
+  // `【图片已保存】<path>` note, so the model can re-open the same picture at any
+  // later point instead of relying on the clipboard, which is not a store.
   const persistedPathCache = new Map<string, string | null>()
-  if (cfg.transcribeImages) {
-    // Persist every pasted image to a stable local file (content-addressed,
-    // cached per attachment id) so the model can re-read it later with the
-    // `vision` tool — the clipboard is not a durable store.
-    const persistPastedImage: PersistImage = async (attachment, signal) => {
-      const key = typeof attachment.attachmentId === 'string' ? attachment.attachmentId : null
-      if (key !== null && persistedPathCache.has(key)) return persistedPathCache.get(key) ?? null
-      let saved: string | null = null
-      try {
-        const stored = await attachments.readImage(attachment, signal)
-        saved = await persistImageFile(cfg.inboxDir, stored.data, attachment.mediaType, 'pasted-image')
-      } catch {
-        saved = null // best-effort: transcription still proceeds without a path
-      }
-      if (key !== null) {
-        persistedPathCache.set(key, saved)
-        if (persistedPathCache.size > 256) {
-          const first = persistedPathCache.keys().next().value
-          if (first !== undefined) persistedPathCache.delete(first)
-        }
-      }
-      return saved
-    }
-    ctx.on('agent/pre-step', async (payload: { agent: Agent; messages: UserMessage[]; signal: AbortSignal }, next: () => Promise<PreStepDecision>) => {
-      const messages = payload.messages ?? []
-      const hasImage = messages.some((message) => hasImageBlock(message.content))
-      const hasTextPath = messages.some((message) =>
-        (message.content ?? []).some((block) => block.type === 'text' && findImagePaths(block.text).length > 0)
-      )
-      if (!hasImage && !hasTextPath) return next()
-      if (payload.signal?.aborted) return next()
-      // Route-aware: a main model that itself takes image input gets the
-      // picture untouched (full fidelity, no second-hand description); a
-      // text-only main model keeps the transcription path.
-      const imageCapable = await isRouteImageCapable(llm, payload.agent)
-      try {
-        const out: UserMessage[] = []
-        for (const message of messages) {
-          const content = message.content
-          if (!hasImageBlock(content) && !(content ?? []).some((block) => block.type === 'text' && findImagePaths(block.text).length > 0)) {
-            out.push(message)
-            continue
-          }
-          const blocks: ContentBlock[] = []
-          for (const block of content) {
-            if (block.type === 'image') {
-              if (!imageCapable) {
-                const transcribed = await transcribeBlocks(llm, cfg, [block], payload.signal, transcriptCache, persistPastedImage)
-                blocks.push(...transcribed)
-                continue
-              }
-              blocks.push(block) // 原图直接给主模型
-              // 仍然落盘并给出路径：之后可以按需反复回看（放大、复核细节）。
-              const saved = await persistPastedImage(block.attachment, payload.signal)
-              if (saved !== null) blocks.push({ type: 'text', text: `【图片已保存】\`${saved}\`` })
-            } else if (block.type === 'text') {
-              if (imageCapable) {
-                blocks.push(block) // 路径原样保留，主模型可用 read_image 自己看
-              } else {
-                const rewritten = await transcribeTextPaths(llm, cfg, ctx.fs, attachments, block.text, payload.signal, transcriptCache)
-                blocks.push({ ...block, text: rewritten })
-              }
-            } else {
-              blocks.push(block)
-            }
-          }
-          out.push({ ...message, content: blocks })
-        }
-        return { kind: 'enter', messages: out }
-      } catch {
-        return next() // transcription is best-effort; never drop the step
-      }
-    })
-  }
-
-  // ── Feature C: read_image redirection for text-only main models ─────────
-  // The built-in read_image tool returns an `image` block; a text-only main
-  // model cannot consume it. When the calling route is text-only, transcribe
-  // the image block to text so the tool call succeeds for the model (the
-  // result is text, not an image it cannot see).
-  ctx.on('tools/post-execute', async (exec: any, result: any, next: () => any) => {
-    if (exec?.name !== 'read_image' || result?.isError) return next()
-    if (!exec.agent) return next()
-    let imageCapable = false
+  const persistPastedImage: PersistImage = async (attachment, signal) => {
+    const key = typeof attachment.attachmentId === 'string' ? attachment.attachmentId : null
+    if (key !== null && persistedPathCache.has(key)) return persistedPathCache.get(key) ?? null
+    let saved: string | null = null
     try {
-      const info = await llm.resolveModelInfo(exec.agent.options?.provider, exec.agent.options?.model)
-      imageCapable = Boolean(info?.inputModalities && info.inputModalities.includes('image'))
+      const stored = await attachments.readImage(attachment, signal)
+      saved = await persistImageFile(cfg.inboxDir, stored.data, attachment.mediaType, 'pasted-image')
     } catch {
-      imageCapable = false
+      saved = null // best-effort: the image still reaches the model without a path
     }
-    if (imageCapable) return next()
-    // The result carries the image in `content` (text + image blocks) and the
-    // attachment metadata in `value.image`. Transcribe via the vision model.
-    const imageBlock = (result.content ?? []).find((b: any) => b?.type === 'image')
-    const imageValue = result.value?.image
-    if (!imageBlock || !imageValue) return next()
-    const ref: ImageAttachmentRef = {
-      attachmentId: imageValue.attachmentId,
-      mediaType: imageValue.mediaType,
-      bytes: imageValue.bytes,
-      width: imageValue.width,
-      height: imageValue.height
+    if (key !== null) {
+      persistedPathCache.set(key, saved)
+      if (persistedPathCache.size > 256) {
+        const first = persistedPathCache.keys().next().value
+        if (first !== undefined) persistedPathCache.delete(first)
+      }
     }
-    const outcome = await callVision(llm, cfg, cfg.instruction, [ref], exec.signal)
-    const transcribed = outcome.ok ? outcome.text : null
-    return {
-      kind: 'accept',
-      content: [{
-        type: 'text',
-        text: transcribed !== null
-          ? `【图片转述】${transcribed}`
-          : '【图片转述失败：视觉模型调用出错。请稍后重试。】'
-      }]
+    return saved
+  }
+  ctx.on('agent/pre-step', async (payload: { agent: Agent; messages: UserMessage[]; signal: AbortSignal }, next: () => Promise<PreStepDecision>) => {
+    const messages = payload.messages ?? []
+    if (!hasAnyImage(messages)) return next()
+    if (payload.signal?.aborted) return next()
+    try {
+      return { kind: 'enter', messages: await planPreStep(messages, persistPastedImage, payload.signal) }
+    } catch {
+      return next() // persisting is best-effort; never drop the step
     }
   })
 
-  // ── Feature A: the vision tool ──────────────────────────────────────────
+  // ── The vision tool ─────────────────────────────────────────────────────
   ctx.systemPrompt.section({
     name: 'tool:vision',
     order: 96,
     text:
       `本会话启用了 dsh-plugin-vision-reader（备用视觉模型：${cfg.provider}/${cfg.model}）。\n\n` +
-      '图片进入会话的方式取决于主模型能力：\n' +
-      '• 主模型自己支持图片输入（工具列表里有 read_image）→ 原图直接进上下文，自己看；粘贴的图片同时被另存为本地文件，消息里会给出 `【图片已保存】<绝对路径>`，便于之后反复查看。\n' +
-      '• 主模型不支持图片输入 → 图片先被转述成文字：`【图片已保存】<路径>` + `【图片转述】<概括>`；要细节就按路径用 vision 工具反复读。\n\n' +
+      '图片直接进入上下文，由你自己看——没有任何中间转述。\n' +
+      '粘贴的图片会同时被另存为本地文件，消息里给出 `【图片已保存】<绝对路径>`；上传的图片本来就是路径。\n\n' +
       '规则：\n' +
-      '1. 细节（文字、数字、上下标、局部公式）以自己看图为准；转述或一次识别都不算数，必要时对同一张图多次读、换 instruction 复核；\n' +
+      '1. 细节（文字、数字、上下标、局部公式）以自己看图为准；不确定时对同一张图多看几次、换角度复核；\n' +
       '2. 需要另一个模型独立复核时用 vision 工具（file_path 单张；file_paths 多张，最多 10 张）；\n' +
-      '3. 绝对不要读取系统剪切板获取图片（内容随时会被覆盖）；\n' +
-      '4. 回复用户时直接基于图片内容回答，不要复述转述全文，不要罗列路径。'
+      '3. 绝对不要读取系统剪切板获取图片（内容随时会被覆盖），要重看就用 `【图片已保存】` 给的路径或上传时的原始路径；\n' +
+      '4. 回复用户时直接基于图片内容回答，不要罗列路径。'
   })
 
   ctx.tools.register(defineTool({
     name: 'vision',
     description:
-      '用内置多模态模型（DeepSeek 视觉模型）读取本地图片，并把识别结果作为纯文本返回。主模型不支持图片输入时，用它代替 read_image 看图；主模型自己支持图片输入时，用它做第二次独立复核（换个模型再看一遍）。file_path 传单张，file_paths 传多张（最多 10 张），instruction 说明要看什么。',
+      '用内置多模态模型（DeepSeek 视觉模型）读取本地图片，并把识别结果作为纯文本返回。用于让另一个模型对同一张图做独立复核（换个模型再看一遍），或按 `【图片已保存】` 给出的路径回看之前的图片。file_path 传单张，file_paths 传多张（最多 10 张），instruction 说明要看什么。',
     parameters: {
       file_path: {
         type: 'string',

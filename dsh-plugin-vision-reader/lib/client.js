@@ -34,24 +34,24 @@ var import_jsx_runtime = require("react/jsx-runtime");
 var NS = "vision-reader";
 var zh = {
   "plugin.title": "\u89C6\u89C9\u8BFB\u56FE\u63D2\u4EF6",
-  "plugin.description": "\u8BA9\u7EAF\u6587\u672C\u4E3B\u6A21\u578B\u4E5F\u80FD\u770B\u56FE\uFF1A\u9047\u5230\u56FE\u7247\u65F6\u81EA\u52A8\u8C03\u7528 DeepSeek \u5185\u7F6E\u591A\u6A21\u6001\u6A21\u578B\u8BC6\u522B\uFF0C\u8BC6\u522B\u7ED3\u679C\u4EE5\u7EAF\u6587\u672C\u8FD4\u56DE\u3002\u65E0\u9700\u989D\u5916 API Key\u3002",
-  "plugin.route": "\u89C6\u89C9\u8DEF\u7531",
+  "plugin.description": "\u56FE\u7247\u76F4\u63A5\u4EA4\u7ED9\u4E3B\u6A21\u578B\u81EA\u5DF1\u770B\uFF0C\u4E0D\u505A\u4EFB\u4F55\u4E2D\u95F4\u8F6C\u8FF0\uFF1B\u7C98\u8D34\u7684\u56FE\u7247\u53E6\u5B58\u4E3A\u672C\u5730\u6587\u4EF6\uFF0C\u4FBF\u4E8E\u4E4B\u540E\u53CD\u590D\u56DE\u770B\u3002\u65E0\u9700\u989D\u5916 API Key\u3002",
+  "plugin.route": "\u5907\u7528\u89C6\u89C9\u8DEF\u7531",
   "plugin.routeValue": "deepseek-official / deepseek-v4-flash-vision-exp",
   "plugin.features": "\u529F\u80FD",
-  "plugin.featureVision": "vision \u5DE5\u5177\uFF1A\u6A21\u578B\u53EF\u8BFB\u53D6\u56FE\u7247\u8DEF\u5F84\u5E76\u8FD4\u56DE\u8BC6\u522B\u6587\u672C",
-  "plugin.featureTranscribe": "\u7C98\u8D34\u56FE\u7247\u81EA\u52A8\u4FDD\u5B58\u4E3A\u672C\u5730\u6587\u4EF6\u5E76\u7B80\u77ED\u8F6C\u8FF0\uFF0C\u6A21\u578B\u53EF\u53CD\u590D\u8BFB\u53D6\u8DEF\u5F84\u67E5\u770B\u7EC6\u8282",
-  "plugin.featureHide": "\u7EAF\u6587\u672C\u4E3B\u6A21\u578B\u4F1A\u8BDD\u81EA\u52A8\u9690\u85CF read_image\uFF0C\u907F\u514D\u5FC5\u5931\u8D25\u7684\u8C03\u7528",
+  "plugin.featurePassthrough": "\u56FE\u7247\u539F\u6837\u76F4\u901A\u4E3B\u6A21\u578B\uFF08\u5168\u4FDD\u771F\uFF09\uFF0C\u4E0D\u7ECF\u8FC7\u4EFB\u4F55\u8F6C\u8FF0",
+  "plugin.featurePersist": "\u7C98\u8D34\u56FE\u7247\u81EA\u52A8\u843D\u76D8\uFF0C\u6D88\u606F\u91CC\u7ED9\u51FA\u8DEF\u5F84\uFF0C\u53EF\u968F\u65F6\u53CD\u590D\u770B\u540C\u4E00\u5F20\u56FE",
+  "plugin.featureVision": "vision \u5DE5\u5177\uFF1A\u8BA9\u5907\u7528\u89C6\u89C9\u6A21\u578B\u5BF9\u540C\u4E00\u5F20\u56FE\u505A\u72EC\u7ACB\u590D\u6838",
   "plugin.hint": "\u914D\u7F6E\u4F4D\u4E8E profile \u7684 cordis.patch.yml\uFF08id: vision-reader\uFF09\u3002\u4FEE\u6539\u540E\u91CD\u542F dsh \u751F\u6548\u3002"
 };
 var en = {
   "plugin.title": "Vision Reader",
-  "plugin.description": "Lets text-only main models read images: image content is routed through DeepSeek's built-in multimodal model and returned as plain text. No extra API key required.",
-  "plugin.route": "Vision route",
+  "plugin.description": "Images go straight to the main model \u2014 no second-hand description in between. Pasted images are also saved to local files so the same picture can be re-read at any later point. No extra API key required.",
+  "plugin.route": "Fallback vision route",
   "plugin.routeValue": "deepseek-official / deepseek-v4-flash-vision-exp",
   "plugin.features": "Features",
-  "plugin.featureVision": "vision tool: the model reads image paths and returns recognized text",
-  "plugin.featureTranscribe": "Pasted images are saved to local files with a concise summary; the model can re-read the saved paths anytime",
-  "plugin.featureHide": "read_image is hidden in text-only main-model sessions to avoid guaranteed failures",
+  "plugin.featurePassthrough": "Images reach the main model verbatim (full fidelity), never transcribed",
+  "plugin.featurePersist": "Pasted images are persisted and the message carries the path, so any picture can be re-read at will",
+  "plugin.featureVision": "vision tool: an independent second opinion from the fallback vision model",
   "plugin.hint": "Configuration lives in the profile's cordis.patch.yml (id: vision-reader). Restart dsh after editing."
 };
 var dicts = {
@@ -71,9 +71,9 @@ function VisionReaderCard(props) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { className: "dsh_visionReader_routeValue", children: t("plugin.routeValue") })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ul", { className: "dsh_visionReader_features", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: t("plugin.featureVision") }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: t("plugin.featureTranscribe") }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: t("plugin.featureHide") })
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: t("plugin.featurePassthrough") }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: t("plugin.featurePersist") }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: t("plugin.featureVision") })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "dsh_visionReader_hint", children: t("plugin.hint") })
   ] });

@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 import type { ImageMediaType } from '@deepseek-ai/dsh-attachment';
 export type { ImageRef as VisionImageRef, PersistImage, VisionLlm, VisionResult } from './vision.js';
-export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef, installAdmissionShim } from './vision.js';
+export { callVision, hasAnyImage, hasImageBlock, planPreStep, SAVED_IMAGE_PREFIX } from './vision.js';
 /** Cordis plugin name — must match the row id in cordis.patch.yml. */
 export declare const name = "vision-reader";
 /** Services required by the node half. */
@@ -13,10 +13,6 @@ export interface VisionReaderConfig {
     provider: string;
     /** Multimodal model id on that provider. */
     model: string;
-    /** Auto-transcribe pasted images before they reach the main model. */
-    transcribeImages: boolean;
-    /** Hide the built-in read_image tool while the main model is text-only. */
-    autoHideReadImage: boolean;
     /** Optional instruction override used when the model gives none. */
     instruction: string;
     /** Directory pasted images are persisted to (for repeated re-reading). */
@@ -25,15 +21,11 @@ export interface VisionReaderConfig {
 export declare const Config: z<Schemastery.ObjectS<{
     provider: z<string, string>;
     model: z<string, string>;
-    transcribeImages: z<boolean, boolean>;
-    autoHideReadImage: z<boolean, boolean>;
     instruction: z<string, string>;
     inboxDir: z<string, string>;
 }>, Schemastery.ObjectT<{
     provider: z<string, string>;
     model: z<string, string>;
-    transcribeImages: z<boolean, boolean>;
-    autoHideReadImage: z<boolean, boolean>;
     instruction: z<string, string>;
     inboxDir: z<string, string>;
 }>>;

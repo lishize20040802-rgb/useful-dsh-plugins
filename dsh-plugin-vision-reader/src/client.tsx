@@ -40,33 +40,33 @@ export type VisionReaderLocaleKey =
   | 'plugin.routeValue'
   | 'plugin.features'
   | 'plugin.featureVision'
-  | 'plugin.featureTranscribe'
-  | 'plugin.featureHide'
+  | 'plugin.featurePassthrough'
+  | 'plugin.featurePersist'
   | 'plugin.hint'
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh: Record<VisionReaderLocaleKey, string> = {
   'plugin.title': '视觉读图插件',
-  'plugin.description': '让纯文本主模型也能看图：遇到图片时自动调用 DeepSeek 内置多模态模型识别，识别结果以纯文本返回。无需额外 API Key。',
-  'plugin.route': '视觉路由',
+  'plugin.description': '图片直接交给主模型自己看，不做任何中间转述；粘贴的图片另存为本地文件，便于之后反复回看。无需额外 API Key。',
+  'plugin.route': '备用视觉路由',
   'plugin.routeValue': 'deepseek-official / deepseek-v4-flash-vision-exp',
   'plugin.features': '功能',
-  'plugin.featureVision': 'vision 工具：模型可读取图片路径并返回识别文本',
-  'plugin.featureTranscribe': '粘贴图片自动保存为本地文件并简短转述，模型可反复读取路径查看细节',
-  'plugin.featureHide': '纯文本主模型会话自动隐藏 read_image，避免必失败的调用',
+  'plugin.featurePassthrough': '图片原样直通主模型（全保真），不经过任何转述',
+  'plugin.featurePersist': '粘贴图片自动落盘，消息里给出路径，可随时反复看同一张图',
+  'plugin.featureVision': 'vision 工具：让备用视觉模型对同一张图做独立复核',
   'plugin.hint': '配置位于 profile 的 cordis.patch.yml（id: vision-reader）。修改后重启 dsh 生效。'
 }
 
 /** English dictionary (checked complete against zh). */
 export const en: Record<VisionReaderLocaleKey, string> = {
   'plugin.title': 'Vision Reader',
-  'plugin.description': 'Lets text-only main models read images: image content is routed through DeepSeek\'s built-in multimodal model and returned as plain text. No extra API key required.',
-  'plugin.route': 'Vision route',
+  'plugin.description': 'Images go straight to the main model — no second-hand description in between. Pasted images are also saved to local files so the same picture can be re-read at any later point. No extra API key required.',
+  'plugin.route': 'Fallback vision route',
   'plugin.routeValue': 'deepseek-official / deepseek-v4-flash-vision-exp',
   'plugin.features': 'Features',
-  'plugin.featureVision': 'vision tool: the model reads image paths and returns recognized text',
-  'plugin.featureTranscribe': 'Pasted images are saved to local files with a concise summary; the model can re-read the saved paths anytime',
-  'plugin.featureHide': 'read_image is hidden in text-only main-model sessions to avoid guaranteed failures',
+  'plugin.featurePassthrough': 'Images reach the main model verbatim (full fidelity), never transcribed',
+  'plugin.featurePersist': 'Pasted images are persisted and the message carries the path, so any picture can be re-read at will',
+  'plugin.featureVision': 'vision tool: an independent second opinion from the fallback vision model',
   'plugin.hint': 'Configuration lives in the profile\'s cordis.patch.yml (id: vision-reader). Restart dsh after editing.'
 }
 
@@ -99,9 +99,9 @@ export function VisionReaderCard(props: VisionReaderCardProps): import('react').
         <code className="dsh_visionReader_routeValue">{t('plugin.routeValue')}</code>
       </div>
       <ul className="dsh_visionReader_features">
+        <li>{t('plugin.featurePassthrough')}</li>
+        <li>{t('plugin.featurePersist')}</li>
         <li>{t('plugin.featureVision')}</li>
-        <li>{t('plugin.featureTranscribe')}</li>
-        <li>{t('plugin.featureHide')}</li>
       </ul>
       <p className="dsh_visionReader_hint">{t('plugin.hint')}</p>
     </div>
