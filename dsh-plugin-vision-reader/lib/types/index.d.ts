@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
-export type { ImageRef as VisionImageRef, VisionLlm, VisionResult } from './vision.js';
+import type { ImageMediaType } from '@deepseek-ai/dsh-attachment';
+export type { ImageRef as VisionImageRef, PersistImage, VisionLlm, VisionResult } from './vision.js';
 export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef, installAdmissionShim } from './vision.js';
 /** Cordis plugin name — must match the row id in cordis.patch.yml. */
 export declare const name = "vision-reader";
@@ -18,6 +19,8 @@ export interface VisionReaderConfig {
     autoHideReadImage: boolean;
     /** Optional instruction override used when the model gives none. */
     instruction: string;
+    /** Directory pasted images are persisted to (for repeated re-reading). */
+    inboxDir: string;
 }
 export declare const Config: z<Schemastery.ObjectS<{
     provider: z<string, string>;
@@ -25,13 +28,25 @@ export declare const Config: z<Schemastery.ObjectS<{
     transcribeImages: z<boolean, boolean>;
     autoHideReadImage: z<boolean, boolean>;
     instruction: z<string, string>;
+    inboxDir: z<string, string>;
 }>, Schemastery.ObjectT<{
     provider: z<string, string>;
     model: z<string, string>;
     transcribeImages: z<boolean, boolean>;
     autoHideReadImage: z<boolean, boolean>;
     instruction: z<string, string>;
+    inboxDir: z<string, string>;
 }>>;
 /** Normalize and validate the plugin configuration. */
 export declare function normalizeConfig(raw: unknown): VisionReaderConfig;
+/**
+ * Persist image bytes to `dir` with a content-addressed file name
+ * (`<sha256-prefix>-<name><ext>`); identical content maps to the same file.
+ * @param dir - target directory (created recursively).
+ * @param data - image bytes.
+ * @param mediaType - image media type (drives the extension).
+ * @param name - display basename (sanitized; may be empty).
+ * @returns the absolute saved path.
+ */
+export declare function persistImageFile(dir: string, data: Uint8Array, mediaType: ImageMediaType, name: string): Promise<string>;
 export declare function apply(ctx: Context, rawConfig: unknown): void;

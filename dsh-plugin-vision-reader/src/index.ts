@@ -9,11 +9,15 @@
 //   A. `vision` tool — the model calls it with image path(s); the plugin
 //      reads the files, persists them as attachments, and asks the built-in
 //      multimodal model to describe/answer, returning plain text.
-//   B. Message transcription — every image reaching the main model is turned
-//      into text first: `image` blocks (pasted images) AND image paths inside
-//      text blocks (files uploaded via dsh-upload-button arrive as path text,
-//      e.g. `C:\...\uploads\<12hex>-photo.png`) are transcribed. The image
-//      never enters the main conversation context.
+//   B. Message transcription — every image reaching a TEXT-ONLY main model is
+//      turned into text first: `image` blocks (pasted images) AND image paths
+//      inside text blocks (files uploaded via dsh-upload-button arrive as path
+//      text, e.g. `C:\...\uploads\<12hex>-photo.png`) are transcribed. The
+//      image never enters the main conversation context.
+//      Route-aware: when the main model itself accepts image input, the image
+//      block is passed through untouched (the model looks at the picture at
+//      full fidelity) and is additionally persisted to the inbox dir so the
+//      model can re-read it later; no transcription happens.
 //   C. `read_image` redirection — when a text-only main model calls the
 //      built-in `read_image` tool, its image result is transcribed to text
 //      before the main model sees it, so the call never fails on modality.
@@ -22,11 +26,15 @@
 //      is steered to `vision` instead; switching to a multimodal main model
 //      restores `read_image` automatically.
 //
-// Everything uses host services only (tools/fs/systemPrompt/llm/attachments);
-// zero external runtime dependencies.
+// Everything uses host services only (tools/fs/systemPrompt/llm/attachments)
+// plus node builtins; zero external runtime dependencies.
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { createHash } from 'node:crypto'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 // Type-only loads activating declaration merges on the cordis Context.
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
@@ -43,13 +51,14 @@ import {
   readImageRef,
   installAdmissionShim,
   type ImageRef as VisionImageRef,
+  type PersistImage,
   type VisionLlm,
   type VisionResult
 } from './vision.js'
 
 // Re-export the pure vision logic so tests and consumers can exercise it
 // without a running host (same pattern as official plugins exposing helpers).
-export type { ImageRef as VisionImageRef, VisionLlm, VisionResult } from './vision.js'
+export type { ImageRef as VisionImageRef, PersistImage, VisionLlm, VisionResult } from './vision.js'
 export { callVision, transcribeBlocks, transcribeTextPaths, findImagePaths, readImageRef, installAdmissionShim } from './vision.js'
 
 /** Cordis plugin name — must match the row id in cordis.patch.yml. */
@@ -63,7 +72,7 @@ const DEFAULT_PROVIDER = 'deepseek-official'
 const DEFAULT_MODEL = 'deepseek-v4-flash-vision-exp'
 
 /** Default instruction when the model does not say what to look at. */
-const DEFAULT_INSTRUCTION = '请详细描述这张图片的内容，包括主体、构图、风格、色调和氛围。'
+const DEFAULT_INSTRUCTION = '请简要描述这张图片：画面主体、关键元素，以及图中出现的任何文字或数字。一两句话即可。'
 
 /** Validated configuration shape (schema output contract). */
 export interface VisionReaderConfig {
@@ -77,6 +86,8 @@ export interface VisionReaderConfig {
   autoHideReadImage: boolean
   /** Optional instruction override used when the model gives none. */
   instruction: string
+  /** Directory pasted images are persisted to (for repeated re-reading). */
+  inboxDir: string
 }
 
 export const Config = z.object({
@@ -84,7 +95,8 @@ export const Config = z.object({
   model: z.string().default(DEFAULT_MODEL),
   transcribeImages: z.boolean().default(true),
   autoHideReadImage: z.boolean().default(true),
-  instruction: z.string().default(DEFAULT_INSTRUCTION)
+  instruction: z.string().default(DEFAULT_INSTRUCTION),
+  inboxDir: z.string().default('')
 })
 
 /** Normalize and validate the plugin configuration. */
@@ -95,6 +107,9 @@ export function normalizeConfig(raw: unknown): VisionReaderConfig {
   if (!provider || !model) {
     throw new Error('vision-reader: provider and model must both be set (defaults: deepseek-official / deepseek-v4-flash-vision-exp)')
   }
+  const inboxDir = typeof config.inboxDir === 'string' && config.inboxDir.trim()
+    ? config.inboxDir.trim()
+    : join(homedir(), '.dsh', 'vision-inbox')
   return {
     provider,
     model,
@@ -102,8 +117,52 @@ export function normalizeConfig(raw: unknown): VisionReaderConfig {
     autoHideReadImage: config.autoHideReadImage !== false,
     instruction: typeof config.instruction === 'string' && config.instruction.trim()
       ? config.instruction.trim()
-      : DEFAULT_INSTRUCTION
+      : DEFAULT_INSTRUCTION,
+    inboxDir
   }
+}
+
+/** Media type → file extension for persisted pasted images. */
+const EXTENSION_BY_MEDIA: Record<ImageMediaType, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif'
+}
+
+/** Keep a file name safe for disk: no separators, control chars, or length. */
+function sanitizeBaseName(raw: string): string {
+  // eslint-disable-next-line no-control-regex
+  const cleaned = raw.replace(/[\u0000-\u001f\u007f]/g, '').replace(/[\\/:*?"<>|]/g, '_')
+  const name = cleaned.replace(/^\.+/, '').trim().slice(0, 60)
+  return name === '' ? 'image' : name
+}
+
+/**
+ * Persist image bytes to `dir` with a content-addressed file name
+ * (`<sha256-prefix>-<name><ext>`); identical content maps to the same file.
+ * @param dir - target directory (created recursively).
+ * @param data - image bytes.
+ * @param mediaType - image media type (drives the extension).
+ * @param name - display basename (sanitized; may be empty).
+ * @returns the absolute saved path.
+ */
+export async function persistImageFile(
+  dir: string,
+  data: Uint8Array,
+  mediaType: ImageMediaType,
+  name: string
+): Promise<string> {
+  await mkdir(dir, { recursive: true })
+  const digest = createHash('sha256').update(data).digest('hex').slice(0, 12)
+  const ext = EXTENSION_BY_MEDIA[mediaType] ?? '.png'
+  const dest = join(dir, `${digest}-${sanitizeBaseName(name)}${ext}`)
+  try {
+    await writeFile(dest, data, { flag: 'wx' })
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code !== 'EEXIST') throw err // identical content already saved
+  }
+  return dest
 }
 
 /** Whether a message content array carries at least one image block. */
@@ -155,6 +214,29 @@ function scheduleReadImageVisibility(
     })
 }
 
+/**
+ * Whether the route this agent is using accepts image input. Uses the same
+ * probe as the read_image visibility logic; the admission shim strips
+ * `inputModalities` for text-only routes, so an unresolvable/undeclared route
+ * reports `false` and keeps the transcription fallback.
+ */
+async function isRouteImageCapable(
+  llm: {
+    resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<{ inputModalities?: string[] } | undefined>
+  },
+  agent: Agent
+): Promise<boolean> {
+  const provider = agent.options?.provider
+  const model = agent.options?.model
+  if (!provider || !model) return false
+  try {
+    const info = await llm.resolveModelInfo(provider, model)
+    return Boolean(info?.inputModalities && info.inputModalities.includes('image'))
+  } catch {
+    return false
+  }
+}
+
 export function apply(ctx: Context, rawConfig: unknown): void {
   const cfg = normalizeConfig(rawConfig)
   const llm = ctx.get('llm') as {
@@ -200,7 +282,30 @@ export function apply(ctx: Context, rawConfig: unknown): void {
   // Both keep their visual identity in the UI (image blocks and file cards
   // survive) while the main model only ever sees text.
   const transcriptCache = new Map<string, string>()
+  const persistedPathCache = new Map<string, string | null>()
   if (cfg.transcribeImages) {
+    // Persist every pasted image to a stable local file (content-addressed,
+    // cached per attachment id) so the model can re-read it later with the
+    // `vision` tool — the clipboard is not a durable store.
+    const persistPastedImage: PersistImage = async (attachment, signal) => {
+      const key = typeof attachment.attachmentId === 'string' ? attachment.attachmentId : null
+      if (key !== null && persistedPathCache.has(key)) return persistedPathCache.get(key) ?? null
+      let saved: string | null = null
+      try {
+        const stored = await attachments.readImage(attachment, signal)
+        saved = await persistImageFile(cfg.inboxDir, stored.data, attachment.mediaType, 'pasted-image')
+      } catch {
+        saved = null // best-effort: transcription still proceeds without a path
+      }
+      if (key !== null) {
+        persistedPathCache.set(key, saved)
+        if (persistedPathCache.size > 256) {
+          const first = persistedPathCache.keys().next().value
+          if (first !== undefined) persistedPathCache.delete(first)
+        }
+      }
+      return saved
+    }
     ctx.on('agent/pre-step', async (payload: { agent: Agent; messages: UserMessage[]; signal: AbortSignal }, next: () => Promise<PreStepDecision>) => {
       const messages = payload.messages ?? []
       const hasImage = messages.some((message) => hasImageBlock(message.content))
@@ -209,6 +314,10 @@ export function apply(ctx: Context, rawConfig: unknown): void {
       )
       if (!hasImage && !hasTextPath) return next()
       if (payload.signal?.aborted) return next()
+      // Route-aware: a main model that itself takes image input gets the
+      // picture untouched (full fidelity, no second-hand description); a
+      // text-only main model keeps the transcription path.
+      const imageCapable = await isRouteImageCapable(llm, payload.agent)
       try {
         const out: UserMessage[] = []
         for (const message of messages) {
@@ -220,11 +329,22 @@ export function apply(ctx: Context, rawConfig: unknown): void {
           const blocks: ContentBlock[] = []
           for (const block of content) {
             if (block.type === 'image') {
-              const transcribed = await transcribeBlocks(llm, cfg, [block], payload.signal, transcriptCache)
-              blocks.push(...transcribed)
+              if (!imageCapable) {
+                const transcribed = await transcribeBlocks(llm, cfg, [block], payload.signal, transcriptCache, persistPastedImage)
+                blocks.push(...transcribed)
+                continue
+              }
+              blocks.push(block) // 原图直接给主模型
+              // 仍然落盘并给出路径：之后可以按需反复回看（放大、复核细节）。
+              const saved = await persistPastedImage(block.attachment, payload.signal)
+              if (saved !== null) blocks.push({ type: 'text', text: `【图片已保存】\`${saved}\`` })
             } else if (block.type === 'text') {
-              const rewritten = await transcribeTextPaths(llm, cfg, ctx.fs, attachments, block.text, payload.signal, transcriptCache)
-              blocks.push({ ...block, text: rewritten })
+              if (imageCapable) {
+                blocks.push(block) // 路径原样保留，主模型可用 read_image 自己看
+              } else {
+                const rewritten = await transcribeTextPaths(llm, cfg, ctx.fs, attachments, block.text, payload.signal, transcriptCache)
+                blocks.push({ ...block, text: rewritten })
+              }
             } else {
               blocks.push(block)
             }
@@ -284,16 +404,21 @@ export function apply(ctx: Context, rawConfig: unknown): void {
     name: 'tool:vision',
     order: 96,
     text:
-      `本会话由 dsh-plugin-vision-reader 提供图片能力，视觉模型：${cfg.provider}/${cfg.model}。` +
-      '遇到图片文件路径时，一律先用 vision 工具（file_path 指向单张图片，多张用 file_paths 传路径数组，instruction 说明要看什么）取得识别文本后再继续；' +
-      '不要尝试用 read_image 或直接猜测图片内容。用户上传或粘贴进对话的图片会被自动转述成文字，' +
-      '模型看到以【图片转述】开头的文本即为转述结果。'
+      `本会话启用了 dsh-plugin-vision-reader（备用视觉模型：${cfg.provider}/${cfg.model}）。\n\n` +
+      '图片进入会话的方式取决于主模型能力：\n' +
+      '• 主模型自己支持图片输入（工具列表里有 read_image）→ 原图直接进上下文，自己看；粘贴的图片同时被另存为本地文件，消息里会给出 `【图片已保存】<绝对路径>`，便于之后反复查看。\n' +
+      '• 主模型不支持图片输入 → 图片先被转述成文字：`【图片已保存】<路径>` + `【图片转述】<概括>`；要细节就按路径用 vision 工具反复读。\n\n' +
+      '规则：\n' +
+      '1. 细节（文字、数字、上下标、局部公式）以自己看图为准；转述或一次识别都不算数，必要时对同一张图多次读、换 instruction 复核；\n' +
+      '2. 需要另一个模型独立复核时用 vision 工具（file_path 单张；file_paths 多张，最多 10 张）；\n' +
+      '3. 绝对不要读取系统剪切板获取图片（内容随时会被覆盖）；\n' +
+      '4. 回复用户时直接基于图片内容回答，不要复述转述全文，不要罗列路径。'
   })
 
   ctx.tools.register(defineTool({
     name: 'vision',
     description:
-      '使用内置多模态模型读取并识别本地图片，把识别结果作为纯文本返回。当当前主模型不支持图片输入（无法使用 read_image）时，用本工具代替：主模型只需要给图片路径和你想从图片里获取的信息。支持一次读取多张图片（file_paths 传路径数组）。',
+      '用内置多模态模型（DeepSeek 视觉模型）读取本地图片，并把识别结果作为纯文本返回。主模型不支持图片输入时，用它代替 read_image 看图；主模型自己支持图片输入时，用它做第二次独立复核（换个模型再看一遍）。file_path 传单张，file_paths 传多张（最多 10 张），instruction 说明要看什么。',
     parameters: {
       file_path: {
         type: 'string',
@@ -365,7 +490,7 @@ export function apply(ctx: Context, rawConfig: unknown): void {
           ? args.instruction.trim()
           : refs.length === 1
             ? cfg.instruction
-            : `请按顺序分析以下 ${refs.length} 张图片，分别描述每张的内容（标注编号 1..${refs.length}），包括主体、构图、风格、色调和氛围。`
+            : `请按顺序分析以下 ${refs.length} 张图片，每张用一两句话概括内容（标注编号 1..${refs.length}），并指出图中出现的文字或数字。`
 
       const result = await callVision(llm, cfg, instruction, refs, exec.signal)
       if (!result.ok) {

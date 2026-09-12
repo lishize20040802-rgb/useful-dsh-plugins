@@ -17,6 +17,14 @@ const VISION_SYSTEM =
 /** Text pasted in place of an image that failed to transcribe. */
 const TRANSCRIBE_FAILED_TEXT = '[图片自动转述失败：视觉模型调用出错。请稍后重试，或把图片保存为文件后让我用 vision 工具读取。]'
 
+/**
+ * Persist one pasted image to a stable local file so the model can re-read
+ * it later (the clipboard is not a durable store). Returns the saved
+ * absolute path, or null when persistence is unavailable/failed — the
+ * transcription still proceeds either way.
+ */
+export type PersistImage = (attachment: ImageAttachmentRef, signal?: AbortSignal) => Promise<string | null>
+
 /** The durable attachment reference a vision call carries. */
 export type ImageRef = ImageAttachmentRef
 
@@ -104,11 +112,16 @@ export async function callVision(
  * Transcribe one content block list's image blocks into text blocks.
  * Non-image blocks pass through untouched; results are cached by
  * attachmentId so the same image in one step is transcribed only once.
+ * When a `persist` callback is supplied, each pasted image is ALSO saved to
+ * a stable local file first, and the produced text carries the saved path
+ * (``【图片已保存】`<path>` ``) so the model can re-read the image later
+ * with the `vision` tool instead of relying on the clipboard.
  * @param llm - the LLM service face.
  * @param cfg - resolved plugin configuration.
  * @param blocks - the content block list (message content).
  * @param signal - optional abort signal.
  * @param cache - per-step transcription cache keyed by attachmentId.
+ * @param persist - optional image-persistence callback (path or null).
  * @returns a copy of `blocks` with every image block replaced by text.
  */
 export async function transcribeBlocks(
@@ -116,7 +129,8 @@ export async function transcribeBlocks(
   cfg: VisionReaderConfig,
   blocks: ContentBlock[],
   signal: AbortSignal | undefined,
-  cache: Map<string, string>
+  cache: Map<string, string>,
+  persist?: PersistImage
 ): Promise<ContentBlock[]> {
   const out: ContentBlock[] = []
   for (const block of blocks ?? []) {
@@ -140,7 +154,17 @@ export async function transcribeBlocks(
         }
       }
     }
-    out.push({ type: 'text', text: text !== null ? `【图片转述】${text}` : TRANSCRIBE_FAILED_TEXT })
+    const parts: string[] = []
+    if (persist !== undefined) {
+      try {
+        const savedPath = await persist(attachment, signal)
+        if (savedPath !== null) parts.push(`【图片已保存】\`${savedPath}\``)
+      } catch {
+        // persistence is best-effort; the transcription still proceeds
+      }
+    }
+    parts.push(text !== null ? `【图片转述】${text}` : TRANSCRIBE_FAILED_TEXT)
+    out.push({ type: 'text', text: parts.join('\n') })
   }
   return out
 }

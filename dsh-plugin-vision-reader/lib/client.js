@@ -39,7 +39,7 @@ var zh = {
   "plugin.routeValue": "deepseek-official / deepseek-v4-flash-vision-exp",
   "plugin.features": "\u529F\u80FD",
   "plugin.featureVision": "vision \u5DE5\u5177\uFF1A\u6A21\u578B\u53EF\u8BFB\u53D6\u56FE\u7247\u8DEF\u5F84\u5E76\u8FD4\u56DE\u8BC6\u522B\u6587\u672C",
-  "plugin.featureTranscribe": "\u7C98\u8D34\u56FE\u7247\u81EA\u52A8\u8F6C\u8FF0\u4E3A\u6587\u5B57\uFF0C\u4E0D\u8FDB\u5165\u4E3B\u6A21\u578B\u4E0A\u4E0B\u6587",
+  "plugin.featureTranscribe": "\u7C98\u8D34\u56FE\u7247\u81EA\u52A8\u4FDD\u5B58\u4E3A\u672C\u5730\u6587\u4EF6\u5E76\u7B80\u77ED\u8F6C\u8FF0\uFF0C\u6A21\u578B\u53EF\u53CD\u590D\u8BFB\u53D6\u8DEF\u5F84\u67E5\u770B\u7EC6\u8282",
   "plugin.featureHide": "\u7EAF\u6587\u672C\u4E3B\u6A21\u578B\u4F1A\u8BDD\u81EA\u52A8\u9690\u85CF read_image\uFF0C\u907F\u514D\u5FC5\u5931\u8D25\u7684\u8C03\u7528",
   "plugin.hint": "\u914D\u7F6E\u4F4D\u4E8E profile \u7684 cordis.patch.yml\uFF08id: vision-reader\uFF09\u3002\u4FEE\u6539\u540E\u91CD\u542F dsh \u751F\u6548\u3002"
 };
@@ -50,7 +50,7 @@ var en = {
   "plugin.routeValue": "deepseek-official / deepseek-v4-flash-vision-exp",
   "plugin.features": "Features",
   "plugin.featureVision": "vision tool: the model reads image paths and returns recognized text",
-  "plugin.featureTranscribe": "Pasted images are auto-transcribed to text and never enter the main model context",
+  "plugin.featureTranscribe": "Pasted images are saved to local files with a concise summary; the model can re-read the saved paths anytime",
   "plugin.featureHide": "read_image is hidden in text-only main-model sessions to avoid guaranteed failures",
   "plugin.hint": "Configuration lives in the profile's cordis.patch.yml (id: vision-reader). Restart dsh after editing."
 };

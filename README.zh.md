@@ -10,6 +10,7 @@
 |---|---|---|
 | [`dsh-upload-button`](./dsh-upload-button) | 双面（host + browser） | 输入框工具栏的无边框 📎 按钮。上传的文件以浮在输入框上方的微软经典配色竖版卡片呈现；按原有「发送」键即自动把文件路径附入消息（原生输入机 occurrence 管线，零发送拦截）；消息里的路径渲染为紧凑文件卡片（点击打开文件）。 |
 | [`dsh-plugin-doc-reader`](./dsh-plugin-doc-reader) | host | 模型可用的 `read_document` 工具：经由 Harness 文件系统后端（`ctx.fs`）读取文本、PDF、DOCX 和 XLSX 文件，具备与内置 read 工具一致的行窗口分页语义。**仅限文字，不支持识图（OCR）——扫描版 PDF 提取不到文字。** |
+| [`dsh-plugin-doc-companion`](./dsh-plugin-doc-companion) | 双面（host + browser） | **文档伴读**：右侧阅读面板渲染 PDF / DOCX / XLSX / CSV / TXT / MD，翻块自动把当前页码同步给 agent（`doc_current`）；配套 `doc_page` / `doc_goto` / `doc_open` / `doc_search` 等工具，支持就当前页提问、文档内全文检索（命中带位置与片段）、做题判分；扫描页自动经视觉模型转写。 |
 | [`dsh-plugin-vision-reader`](./dsh-plugin-vision-reader) | 双面（host + browser） | 让**纯文本主模型也能看图**：遇到图片时自动调用 DeepSeek 内置多模态模型（`deepseek-v4-flash-vision-exp`）识别，结果以纯文本返回——**无需任何额外 API Key**（与主模型共用 `DEEPSEEK_API_KEY`）。包含 `vision` 工具、粘贴图片自动转述、纯文本主模型时自动隐藏必失败的 `read_image` 三个能力。 |
 | [`dsh-desktop-config`](./dsh-desktop-launcher) | 双面（host + browser） | 桌面端启动器配置：以 settings 命名空间（`desktop-launcher`）保存端口、绑定地址、自动打开浏览器，Electron 桌面端与 Web 设置页共享一份配置（`$DSH_HOME/settings.yaml`）。 |
 | [`useful-dsh-plugin-manager`](./useful-dsh-plugin-manager) | 双面（host + browser） | 可视化插件管理器：Web 设置 → 插件页新增「管理」标签——任意插件行停用/启用、第三方包检测更新与一键更新、**所有行（含官方包）一键修复**（恢复 registry 官方原件）、一键恢复全部。 |
@@ -30,6 +31,7 @@ dsh plugin --profile web add useful-dsh-plugins@latest --config.minimumReleaseAg
 ```sh
 dsh plugin --profile web add dsh-upload-button@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add dsh-plugin-doc-reader@latest --config.minimumReleaseAge=0
+dsh plugin --profile web add dsh-plugin-doc-companion@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add dsh-plugin-vision-reader@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add dsh-desktop-config@latest --config.minimumReleaseAge=0
 dsh plugin --profile web add useful-dsh-plugin-manager@latest --config.minimumReleaseAge=0

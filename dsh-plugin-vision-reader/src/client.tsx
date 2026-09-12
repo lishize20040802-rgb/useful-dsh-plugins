@@ -48,7 +48,7 @@ export const zh: Record<VisionReaderLocaleKey, string> = {
   'plugin.routeValue': 'deepseek-official / deepseek-v4-flash-vision-exp',
   'plugin.features': '功能',
   'plugin.featureVision': 'vision 工具：模型可读取图片路径并返回识别文本',
-  'plugin.featureTranscribe': '粘贴图片自动转述为文字，不进入主模型上下文',
+  'plugin.featureTranscribe': '粘贴图片自动保存为本地文件并简短转述，模型可反复读取路径查看细节',
   'plugin.featureHide': '纯文本主模型会话自动隐藏 read_image，避免必失败的调用',
   'plugin.hint': '配置位于 profile 的 cordis.patch.yml（id: vision-reader）。修改后重启 dsh 生效。'
 }
@@ -61,7 +61,7 @@ export const en: Record<VisionReaderLocaleKey, string> = {
   'plugin.routeValue': 'deepseek-official / deepseek-v4-flash-vision-exp',
   'plugin.features': 'Features',
   'plugin.featureVision': 'vision tool: the model reads image paths and returns recognized text',
-  'plugin.featureTranscribe': 'Pasted images are auto-transcribed to text and never enter the main model context',
+  'plugin.featureTranscribe': 'Pasted images are saved to local files with a concise summary; the model can re-read the saved paths anytime',
   'plugin.featureHide': 'read_image is hidden in text-only main-model sessions to avoid guaranteed failures',
   'plugin.hint': 'Configuration lives in the profile\'s cordis.patch.yml (id: vision-reader). Restart dsh after editing.'
 }

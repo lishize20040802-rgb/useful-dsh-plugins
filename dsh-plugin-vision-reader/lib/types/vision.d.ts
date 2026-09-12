@@ -2,6 +2,13 @@ import type { ContentBlock, GenerateOptions, StreamChunk, LlmResolvedModelInfo }
 import type { ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment';
 import type { Context } from '@deepseek-ai/cordis';
 import type { VisionReaderConfig } from './index.js';
+/**
+ * Persist one pasted image to a stable local file so the model can re-read
+ * it later (the clipboard is not a durable store). Returns the saved
+ * absolute path, or null when persistence is unavailable/failed — the
+ * transcription still proceeds either way.
+ */
+export type PersistImage = (attachment: ImageAttachmentRef, signal?: AbortSignal) => Promise<string | null>;
 /** The durable attachment reference a vision call carries. */
 export type ImageRef = ImageAttachmentRef;
 /** Minimal LLM service face the vision flow needs. */
@@ -54,14 +61,19 @@ export declare function callVision(llm: VisionLlm, cfg: VisionReaderConfig, inst
  * Transcribe one content block list's image blocks into text blocks.
  * Non-image blocks pass through untouched; results are cached by
  * attachmentId so the same image in one step is transcribed only once.
+ * When a `persist` callback is supplied, each pasted image is ALSO saved to
+ * a stable local file first, and the produced text carries the saved path
+ * (``【图片已保存】`<path>` ``) so the model can re-read the image later
+ * with the `vision` tool instead of relying on the clipboard.
  * @param llm - the LLM service face.
  * @param cfg - resolved plugin configuration.
  * @param blocks - the content block list (message content).
  * @param signal - optional abort signal.
  * @param cache - per-step transcription cache keyed by attachmentId.
+ * @param persist - optional image-persistence callback (path or null).
  * @returns a copy of `blocks` with every image block replaced by text.
  */
-export declare function transcribeBlocks(llm: VisionLlm, cfg: VisionReaderConfig, blocks: ContentBlock[], signal: AbortSignal | undefined, cache: Map<string, string>): Promise<ContentBlock[]>;
+export declare function transcribeBlocks(llm: VisionLlm, cfg: VisionReaderConfig, blocks: ContentBlock[], signal: AbortSignal | undefined, cache: Map<string, string>, persist?: PersistImage): Promise<ContentBlock[]>;
 /** One recognized image path inside a text block. */
 export interface PathMatch {
     /** Full path as written in the text. */

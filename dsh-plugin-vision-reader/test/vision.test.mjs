@@ -77,6 +77,23 @@ test('transcribeBlocks replaces image blocks with prefixed text', async () => {
   assert.equal(out[1].text, '【图片转述】一只猫')
 })
 
+test('transcribeBlocks persists the image and carries the saved path', async () => {
+  const llm = fakeLlm('一只猫')
+  const persist = async (attachment) => `D:\\inbox\\${attachment.attachmentId}.png`
+  const blocks = [imageBlock('att-persist')]
+  const out = await transcribeBlocks(llm, cfg, blocks, undefined, new Map(), persist)
+  assert.equal(out[0].type, 'text')
+  assert.equal(out[0].text, '【图片已保存】`D:\\inbox\\att-persist.png`\n【图片转述】一只猫')
+})
+
+test('transcribeBlocks falls back to transcription-only when persistence fails', async () => {
+  const llm = fakeLlm('一只猫')
+  const persist = async () => null // save failed
+  const blocks = [imageBlock('att-fail')]
+  const out = await transcribeBlocks(llm, cfg, blocks, undefined, new Map(), persist)
+  assert.equal(out[0].text, '【图片转述】一只猫')
+})
+
 test('transcription caches by attachment id within one step', async () => {
   const llm = fakeLlm('同一张图')
   const blocks = [imageBlock('att-dup'), imageBlock('att-dup')]
@@ -144,6 +161,33 @@ test('readImageRef returns undefined for non-image paths', async () => {
   const attFace = { imageLimits: { mediaTypes: ['image/png'] }, saveImage: async () => ({}) }
   const ref = await readImageRef(fsFace, attFace, 'D:\\a\\note.txt', undefined)
   assert.equal(ref, undefined)
+})
+
+// ── image persistence (pasted images land on disk for re-reading) ─────────
+
+test('persistImageFile writes content-addressed files with the right extension', async () => {
+  const { persistImageFile } = await import('../lib/index.js')
+  const { mkdtemp, readdir, readFile, rm } = await import('node:fs/promises')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const dir = await mkdtemp(join(tmpdir(), 'vision-inbox-'))
+  try {
+    const data = new Uint8Array([137, 80, 78, 71, 1, 2, 3])
+    const first = await persistImageFile(dir, data, 'image/png', 'pasted-image')
+    assert.equal(first.includes('-pasted-image.png'), true)
+    assert.match(first, /[0-9a-f]{12}-pasted-image\.png$/)
+    // identical content dedupes to the same file (no EEXIST failure)
+    const second = await persistImageFile(dir, data, 'image/png', 'pasted-image')
+    assert.equal(second, first)
+    const files = await readdir(dir)
+    assert.equal(files.length, 1)
+    assert.deepEqual([...await readFile(first)], [...data])
+    // media type drives the extension
+    const jpeg = await persistImageFile(dir, new Uint8Array([255, 216, 255]), 'image/jpeg', 'shot')
+    assert.equal(jpeg.endsWith('-shot.jpg'), true)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })
 
 // ── admission shim (host gate relaxation for text-only main models) ───────
