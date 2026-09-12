@@ -10,13 +10,17 @@
 // through ctx.locale, slot registration with a stable id, and every failure
 // degrades instead of crashing the composition.
 import type { LocaleId } from '@deepseek-ai/dsh-client-locale'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 // Type-only loads activating the service / slot-map declaration merges.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+// 0.1.5: `ctx.slots` / `ctx.uiRenderer` are declared by the UI renderer, which
+// replaces the removed `@deepseek-ai/dsh-client-runtime` browser runtime.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Side-effect type import activating the LocaleNamespaceMap augmentation
 // target before the `declare module` below merges into it.
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 
 /** Locale namespace for this plugin's UI copy. */
 export const NS = 'vision-reader'
@@ -72,10 +76,13 @@ export const dicts = {
   en
 } satisfies Record<LocaleId, Record<VisionReaderLocaleKey, string>>
 
-/** Card props injected by the settings slot. */
-export interface VisionReaderCardProps {
-  t: (key: string) => string
-}
+/**
+ * Card props. 0.1.5 shape (mirrors the official `WebSearchCardProps`): the
+ * framework supplies the runtime seat and this package's own locale `t` — the
+ * slot's owner share is intentionally empty, so nothing is self-injected.
+ */
+export type VisionReaderCardProps =
+  PropsRuntime<'settings.plugin.item'> & PropsLocale<typeof NS>
 
 /** The read-only settings card body. */
 export function VisionReaderCard(props: VisionReaderCardProps): import('react').ReactElement {
@@ -109,7 +116,7 @@ export const inject = ['slots', 'locale']
  * Every failure-prone registration degrades instead of crashing.
  * @param ctx - client root context.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, dicts), `${NS}: dictionaries`)
 
   const guarded = (label: string, register: () => () => void): (() => void) => {
@@ -122,15 +129,12 @@ export function apply(ctx: ClientContext): void {
   }
 
   ctx.slots.inject('settings.plugin.item', () => guarded('settings.plugin.item', () =>
+    // `settings.plugin.item` is a keyed slot: the dispatch key is the settings
+    // namespace, and `order` is a list-slot option (0.1.5 keys it away).
     ctx.slots.register({
       name: 'settings.plugin.item',
       key: NS,
-      id: NS,
-      order: 30,
-      locale: NS,
-      inject: (): VisionReaderCardProps => ({
-        t: (key: string) => ctx.locale.bind(NS)(key)
-      })
+      locale: NS
     }, VisionReaderCard)
   ))
 }

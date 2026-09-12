@@ -9,7 +9,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { Tooltip, IconPaperclipOutline16, IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import {
   pendingOf, subscribePending, removePendingFile,
   subscribeErrors, getUploadError, clearUploadError,

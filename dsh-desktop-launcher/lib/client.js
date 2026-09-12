@@ -77,16 +77,16 @@ function apply(ctx) {
   };
   ctx.slots.inject("settings.plugin.item", () => guarded(
     "settings.plugin.item",
-    () => ctx.slots.register({
-      name: "settings.plugin.item",
-      key: NS,
-      id: NS,
-      order: 31,
-      locale: NS,
-      inject: () => ({
-        t: (key) => ctx.locale.bind(NS)(key)
-      })
-    }, DesktopLauncherCard)
+    () => (
+      // `settings.plugin.item` is a keyed slot: the dispatch key is the settings
+      // namespace the Host serves (`NAMESPACE` in the node half), and `id`/`order`
+      // are list-slot options that 0.1.5 keys away.
+      ctx.slots.register({
+        name: "settings.plugin.item",
+        key: NS,
+        locale: NS
+      }, DesktopLauncherCard)
+    )
   ));
 }
 return module.exports; } });

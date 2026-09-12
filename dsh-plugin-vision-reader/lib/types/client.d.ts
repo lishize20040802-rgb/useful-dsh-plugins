@@ -1,4 +1,5 @@
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
+import type { Context } from '@deepseek-ai/cordis';
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 /** Locale namespace for this plugin's UI copy. */
 export declare const NS = "vision-reader";
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -18,10 +19,12 @@ export declare const dicts: {
     zh: Record<VisionReaderLocaleKey, string>;
     en: Record<VisionReaderLocaleKey, string>;
 };
-/** Card props injected by the settings slot. */
-export interface VisionReaderCardProps {
-    t: (key: string) => string;
-}
+/**
+ * Card props. 0.1.5 shape (mirrors the official `WebSearchCardProps`): the
+ * framework supplies the runtime seat and this package's own locale `t` — the
+ * slot's owner share is intentionally empty, so nothing is self-injected.
+ */
+export type VisionReaderCardProps = PropsRuntime<'settings.plugin.item'> & PropsLocale<typeof NS>;
 /** The read-only settings card body. */
 export declare function VisionReaderCard(props: VisionReaderCardProps): import('react').ReactElement;
 /** Browser cordis services this client plugin needs. */
@@ -31,4 +34,4 @@ export declare const inject: string[];
  * Every failure-prone registration degrades instead of crashing.
  * @param ctx - client root context.
  */
-export declare function apply(ctx: ClientContext): void;
+export declare function apply(ctx: Context): void;

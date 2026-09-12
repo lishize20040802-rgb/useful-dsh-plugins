@@ -37,6 +37,13 @@ export declare const Config: z<Schemastery.ObjectS<{
     instruction: z<string, string>;
     inboxDir: z<string, string>;
 }>>;
+/**
+ * Settings namespace this plugin owns. The browser half registers its info
+ * card under the same key (`settings.plugin.item`), which is how the official
+ * Plugins tab pairs the two: key → namespace, with the tab staying ignorant of
+ * what the namespace means.
+ */
+export declare const SETTINGS_NS = "vision-reader";
 /** Normalize and validate the plugin configuration. */
 export declare function normalizeConfig(raw: unknown): VisionReaderConfig;
 /**

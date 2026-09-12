@@ -14,17 +14,15 @@ import {
   Tooltip, IconCopyOutline16, IconCheckOutline16,
   JsonBlock, writeClipboard
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { ImageGallery } from '@deepseek-ai/dsh-client-ui-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { UPLOAD_PATH_RE, displayName, badgeStyle } from './upload'
 import type { NS } from './locales'
 
 /** The framework-injected `t` seat carries this package's key union (+ common). */
 export type UploadTranslate = TranslateNS<typeof NS>
-
-/** One chat-node content block (wide by contract — only text/image read). */
-interface ContentBlock { type: string; text?: string; attachment?: ImageAttachmentRef }
 
 /** Split a user message content array into text / image / other blocks. */
 function contentParts(content: ReadonlyArray<ContentBlock>): { text: string; images: Array<{ attachment: ImageAttachmentRef }>; rest: ContentBlock[] } {
@@ -32,8 +30,8 @@ function contentParts(content: ReadonlyArray<ContentBlock>): { text: string; ima
   const images: Array<{ attachment: ImageAttachmentRef }> = []
   const rest: ContentBlock[] = []
   for (const block of content) {
-    if (block.type === 'text' && typeof block.text === 'string') texts.push(block.text)
-    else if (block.type === 'image' && block.attachment !== undefined) images.push({ attachment: block.attachment })
+    if (block.type === 'text') texts.push(block.text)
+    else if (block.type === 'image') images.push({ attachment: block.attachment })
     else rest.push(block)
   }
   return { text: texts.join(''), images, rest }
@@ -89,21 +87,6 @@ function projectRefTokens(text: string): ReactNode[] {
   if (parts.length === 0) return [<span key={0} className="dsh-up-msg-text">{text}</span>]
   if (cursor < text.length) parts.push(<span key={cursor} className="dsh-up-msg-text">{text.slice(cursor)}</span>)
   return parts
-}
-
-/** Resolve the message-image gallery strings from the package namespace. */
-function messageImageLabels(t: UploadTranslate) {
-  return {
-    image: t('image.label'),
-    open: t('image.openOriginal'),
-    openNamed: (label: string) => t('image.openOriginalLabel', { label }),
-    loading: t('image.loading'),
-    loadFailed: t('image.loadFailed'),
-    lightbox: {
-      dialog: t('image.lightboxDialog'),
-      close: t('image.lightboxClose')
-    }
-  }
 }
 
 function pad2(n: number): string {
@@ -178,24 +161,19 @@ function UserBubbleActions({ text, time, t }: { text: string; time?: number; t: 
   )
 }
 
-/** The durable user / steering node slice this renderer reads. */
-interface UserMessageNode {
-  data?: {
-    content?: ReadonlyArray<ContentBlock>
-    time?: number
-  }
-}
-
-export interface UserMessageViewProps {
-  /** The routed chat node (owner share). */
-  node: UserMessageNode
-  /** Resolve a session-authorized historical image for inline display. */
-  loadImage?: (attachment: ImageAttachmentRef) => Promise<string>
-  /** Open a filesystem path through the Host (tool-row semantics). */
-  openFile?: (path: string) => void
-  /** Framework-injected package-namespace translate. */
-  t: UploadTranslate
-}
+/**
+ * Framework props for the shadowed user / steering node: the routed node, the
+ * owner face the Chat target threads down (`openFile`, `renderMessageImages`,
+ * `loadImage`), and this package's own namespace translate in place of the
+ * Chat namespace the shipped renderer uses.
+ *
+ * 0.1.5: the durable references are rendered by the framework's own
+ * `renderMessageImages` — the attachment package deliberately stopped
+ * exporting React components, so the plugin no longer composes a gallery (or
+ * its labels) itself.
+ */
+export type UserMessageViewProps =
+  Omit<ChatNodeViewProps<'user' | 'steering'>, 't'> & { t: UploadTranslate }
 
 /**
  * Shadow renderer for user / steering chat nodes: the bubble shows only the
@@ -204,16 +182,15 @@ export interface UserMessageViewProps {
  * paths included) is preserved — copy and the model-visible message stay
  * identical to what was sent.
  */
-export const UserMessageWithUploads = memo(function UserMessageWithUploads({ node, loadImage, openFile, t }: UserMessageViewProps) {
-  const content = node.data?.content ?? []
+export const UserMessageWithUploads = memo(function UserMessageWithUploads({ node, openFile, renderMessageImages, t }: UserMessageViewProps) {
+  const content = node.data.content
   const { text, images, rest } = contentParts(content)
   const { visible, files } = stripUploadTokens(text)
-  const imageLoader = loadImage ?? (() => Promise.reject(new Error(t('image.serviceUnavailable'))))
   const showBubble = visible !== '' || rest.length > 0
   return (
     <div className="dsh-up-msg-row" data-time-hover-root>
       <div className="dsh-up-msg-stack">
-        {images.length > 0 && <ImageGallery images={images} load={imageLoader} align="end" labels={messageImageLabels(t)} />}
+        {images.length > 0 && renderMessageImages({ images, align: 'end' })}
         {files.length > 0 && (
           <div className="dsh-up-msg-files">
             {files.map((f) => {
@@ -225,7 +202,7 @@ export const UserMessageWithUploads = memo(function UserMessageWithUploads({ nod
                   className="dsh-up-msg-file"
                   title={f.path}
                   aria-label={t('upload.openFile')}
-                  onClick={() => { try { openFile?.(f.path) } catch { /* host may not expose the opener */ } }}
+                  onClick={() => { try { openFile(f.path) } catch { /* host may not expose the opener */ } }}
                 >
                   <span className="dsh-up-badge" style={{ background: bg }}>{ext}</span>
                   <span className="dsh-up-name">{f.name}</span>
@@ -243,7 +220,7 @@ export const UserMessageWithUploads = memo(function UserMessageWithUploads({ nod
           </div>
         )}
       </div>
-      <UserBubbleActions text={text} time={node.data?.time} t={t} />
+      <UserBubbleActions text={text} time={node.data.time} t={t} />
     </div>
   )
 })

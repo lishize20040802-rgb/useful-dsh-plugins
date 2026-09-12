@@ -92,16 +92,15 @@ function apply(ctx) {
   };
   ctx.slots.inject("settings.plugin.item", () => guarded(
     "settings.plugin.item",
-    () => ctx.slots.register({
-      name: "settings.plugin.item",
-      key: NS,
-      id: NS,
-      order: 30,
-      locale: NS,
-      inject: () => ({
-        t: (key) => ctx.locale.bind(NS)(key)
-      })
-    }, VisionReaderCard)
+    () => (
+      // `settings.plugin.item` is a keyed slot: the dispatch key is the settings
+      // namespace, and `order` is a list-slot option (0.1.5 keys it away).
+      ctx.slots.register({
+        name: "settings.plugin.item",
+        key: NS,
+        locale: NS
+      }, VisionReaderCard)
+    )
   ));
 }
 return module.exports; } });

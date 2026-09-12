@@ -187,6 +187,7 @@ var Config = z.object({
   instruction: z.string().default(DEFAULT_INSTRUCTION),
   inboxDir: z.string().default("")
 });
+var SETTINGS_NS = "vision-reader";
 function normalizeConfig(raw) {
   const config = raw ?? {};
   const provider = typeof config.provider === "string" && config.provider.trim() ? config.provider.trim() : DEFAULT_PROVIDER;
@@ -267,6 +268,13 @@ function apply(ctx, rawConfig) {
   if (!llm) throw new Error("vision-reader: no llm service mounted");
   const attachments = ctx.get("attachments");
   if (!attachments) throw new Error("vision-reader: no attachment service is mounted");
+  ctx.inject(["settings"], (sctx) => {
+    try {
+      sctx.settings.register(SETTINGS_NS, Config, { base: cfg });
+    } catch (err) {
+      console.warn("[dsh-plugin-vision-reader] settings namespace registration failed; the settings card stays absent:", err);
+    }
+  });
   const disposeAdmission = installAdmissionShim(ctx, cfg);
   ctx.effect(() => disposeAdmission, "vision-reader: admission shim");
   const hiding = { denied: /* @__PURE__ */ new Map() };
@@ -483,6 +491,7 @@ function baseName(path) {
 }
 export {
   Config,
+  SETTINGS_NS,
   apply,
   callVision,
   findImagePaths,

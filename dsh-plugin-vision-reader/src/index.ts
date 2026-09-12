@@ -39,6 +39,11 @@ import { join } from 'node:path'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+// 0.1.5: `ctx.settings`. The Plugins settings tab dispatches a plugin's card
+// only for a settings namespace that plugin registered on the Host — it pairs
+// key to namespace and never learns what the namespace means. Without this the
+// browser card registers and is then silently never drawn.
+import type {} from '@deepseek-ai/dsh-settings'
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { ContentBlock, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
@@ -98,6 +103,14 @@ export const Config = z.object({
   instruction: z.string().default(DEFAULT_INSTRUCTION),
   inboxDir: z.string().default('')
 })
+
+/**
+ * Settings namespace this plugin owns. The browser half registers its info
+ * card under the same key (`settings.plugin.item`), which is how the official
+ * Plugins tab pairs the two: key → namespace, with the tab staying ignorant of
+ * what the namespace means.
+ */
+export const SETTINGS_NS = 'vision-reader'
 
 /** Normalize and validate the plugin configuration. */
 export function normalizeConfig(raw: unknown): VisionReaderConfig {
@@ -246,6 +259,23 @@ export function apply(ctx: Context, rawConfig: unknown): void {
   if (!llm) throw new Error('vision-reader: no llm service mounted')
   const attachments = ctx.get('attachments') as AttachmentStore | undefined
   if (!attachments) throw new Error('vision-reader: no attachment service is mounted')
+
+  // ── Settings namespace (0.1.5) ──────────────────────────────────────────
+  // The official Plugins tab draws the browser card only for a namespace the
+  // Host serves, so the namespace must be registered here. `base` carries the
+  // row's composition config, so the descriptor the tab reads describes the
+  // effective route rather than bare schema defaults.
+  //
+  // Registered through a scoped injection rather than a plain `ctx.get`: the
+  // settings provider can mount after this plugin, and gating the whole plugin
+  // on it would make a settings-less deployment refuse to load vision-reader.
+  ctx.inject(['settings'], (sctx) => {
+    try {
+      sctx.settings.register(SETTINGS_NS, Config, { base: cfg })
+    } catch (err) {
+      console.warn('[dsh-plugin-vision-reader] settings namespace registration failed; the settings card stays absent:', err)
+    }
+  })
 
   // ── Feature E: host image-admission relaxation ───────────────────────────
   // The host's session.prompt preflight refuses image messages for text-only

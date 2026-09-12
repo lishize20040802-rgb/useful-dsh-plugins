@@ -33,61 +33,43 @@ import { NS, dicts } from './client/locales'
 import { UPLOAD_PATH_RE, attachFile, displayName } from './client/upload'
 import { UploadButton, UploadDock } from './client/composer'
 import { UserMessageWithUploads } from './client/message-bubble'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 // Type-only loads that activate the service / slot-map declaration merges on
 // the cordis Context (the browser-side service providers). Erased at build.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// 0.1.5: `ctx.slots` / `ctx.uiRenderer` come from the UI renderer, while
+// `ctx.sessions` / `ctx.workspaces` moved to the API controller plugins —
+// together they replace the removed `@deepseek-ai/dsh-client-runtime`.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+// `conversation.chat.node` and the node owner face (openFile /
+// renderMessageImages) are declared by the Chat target.
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 
 /** Browser cordis services this client plugin needs. */
-export const inject = ['slots', 'sessions', 'workspaces', 'locale']
-
-/**
- * The chat markdown renderer asks this provider (the official
- * `chatFileMentions` seat) to resolve inline-code tokens: a token matching an
- * upload path renders as a compact file mention (filename label, click opens
- * the file) instead of a long path string — the renderer never guesses paths
- * on its own; only tokens this provider accepts become file cards.
- */
-function fileMentionsProvider(ctx: ClientContext) {
-  const resolve = (value: string) => {
-    if (!UPLOAD_PATH_RE.test(value)) return undefined
-    return {
-      label: displayName(value),
-      title: value,
-      open: () => {
-        const workspaces = ctx.get('workspaces')
-        if (workspaces === undefined) return
-        void workspaces.openPath(value).catch(() => {})
-      }
-    }
-  }
-  return {
-    forClosing: () => ({ resolve })
-  }
-}
+export const inject = ['slots', 'sessions', 'locale']
 
 /**
  * Client plugin body: register the dictionaries and every UI contribution.
  * Every failure-prone registration degrades instead of crashing the
  * composition (official seat conflicts stay local to the missing seat).
+ *
+ * 0.1.5 removed this plugin's prose file-mention provider: `chatFileMentions`
+ * is now owned outright by the official `dsh-client-ui-deliverables` plugin
+ * ("all policy lives here"), whose vocabulary is the turn's write/edit
+ * products. Providing it here became a duplicate-service boot failure, and
+ * there is no third-party extension point. Assistant prose therefore renders
+ * an upload path as inert inline code; the plugin's own bubble (below) still
+ * hides the path and shows the file card.
  * @param ctx - client root context.
  */
-export function apply(ctx: ClientContext) {
+export function apply(ctx: Context) {
   injectCss()
   ctx.effect(() => ctx.locale.register(NS, dicts), `${NS}: dictionaries`)
   // Stable per-namespace translate (bind caches per namespace; same reference
   // every call), used by non-component code paths (upload errors).
   const t = ctx.locale.bind(NS)
-
-  // File mentions in chat: the message renderer turns our inline-code path
-  // tokens into compact file mentions (filename + click-to-open). Optional
-  // service — a conflict never crashes the plugin.
-  try {
-    ctx.provide('chatFileMentions', fileMentionsProvider(ctx))
-  } catch (err) {
-    console.warn('[dsh-upload-button] chatFileMentions service registration failed; paths will render as plain text:', err)
-  }
 
   // Slot conflicts (duplicate cell ids) degrade instead of crashing. The
   // thunk form keeps the register call fully typed (the literal options are

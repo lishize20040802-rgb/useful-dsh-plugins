@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop-config",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DeepSeek Harness desktop-config host+client plugin: owns the desktop app's configuration (port, auto-open, window) as a settings namespace, so the Electron shell and the web UI share one source of truth. Works with the offline desktop build.",
   "keywords": [
     "deepseek",
@@ -36,7 +36,7 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-runtime"
+        "@deepseek-ai/dsh-client-ui-renderer"
       ],
       "platform": "web"
     },
@@ -46,10 +46,11 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-settings": "^0.1.5-rc.2",
     "@deepseek-ai/schemastery": "^3.18.1",
-    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-locale": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.5-rc.2",
     "react": "^18.2.0"
   },
   "devDependencies": {
