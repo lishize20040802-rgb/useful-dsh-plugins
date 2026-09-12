@@ -1,0 +1,14 @@
+{
+  "name": "useful-dsh-plugins-dev",
+  "private": true,
+  "description": "Build-time dev store for the plugins in this repo. Plugins declare their @deepseek-ai/* packages as peerDependencies (the harness provides them at runtime), so nothing here is a runtime dependency of any published package — this file exists so the resolutions the plugins are built and typechecked against are reproducible, and so the harness's profile module fallback (`.dsh-module-fallback`, healed by dsh-app-boot) has a stable place to resolve the two client packages the 0.1.5 bundle does not ship.",
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/schemastery": "^3.18.2",
+    "@deepseek-ai/dsh": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-store": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-dockkit": "0.1.5-rc.2"
+  }
+}
