@@ -1,0 +1,13 @@
+# dsh-plugin-voice-input bundle patch: one insert registering the dual-face plugin.
+# The row id must match the node half's exported cordis `name`.
+# Credentials are intentionally NOT shipped here: set `arkApiKey` in the
+# profile's own patch layer (or via the ARK_API_KEY environment variable).
+# This file stays key-free so the package remains safe to share.
+- insert:
+    - id: voice-input
+      name: 'dsh-plugin-voice-input'
+      config:
+        model: 'doubao-seed-asr-1-0'
+        baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
+        language: 'zh'
+        maxBytes: 26214400
