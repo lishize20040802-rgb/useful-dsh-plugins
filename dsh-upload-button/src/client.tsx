@@ -1,0 +1,125 @@
+// dsh-upload-button — browser half (entry).
+//
+// Attachment flow with zero draft involvement, split across two official
+// slots:
+//
+// - `conversation.input.left` (order 0): a borderless toolbar button that
+//   uploads files and queues them in the plugin's per-session pending list.
+//   The composer draft is NEVER touched — no occurrence tokens, no invisible
+//   characters, no cursor impact; the input box stays exactly as the user
+//   left it.
+// - `conversation.input.dock` (order 5): the display surface — one
+//   Microsoft-classic colored file card per pending file (red PDF, blue Word,
+//   green Excel, ...) floating above the composer card, with ✕ removal.
+//
+// Pressing the ordinary Send button routes the message through the official
+// `session.prompt` facade, where a transparent wrapper appends the pending
+// paths (inline-code tokens) to the outgoing content and clears the list —
+// the model receives the paths verbatim, exactly as before.
+//
+// Message display: the chat bubble never shows the paths. A shadow renderer
+// registered on the `conversation.chat.node` keyed slot (priority -1, below
+// the official 0) renders user messages with only the user's words: each
+// attached file appears as the same Microsoft-classic file card the composer
+// dock uses, floating above the bubble.
+//
+// Official plugin conventions: the package registers its own locale namespace
+// (`dsh-upload-button`, zh/en complete pairs) through `ctx.locale`, binds
+// every component to it via the slot `locale:` option, and keeps the browser
+// half split into focused modules (locales / style / upload / composer /
+// message-bubble) mirroring the official `src/client/` layout.
+import { injectCss } from './client/style'
+import { NS, dicts } from './client/locales'
+import { UPLOAD_PATH_RE, attachFile, displayName, disposeSendAttachments } from './client/upload'
+import { UploadButton, UploadDock } from './client/composer'
+import { UserMessageWithUploads } from './client/message-bubble'
+import type { Context } from '@deepseek-ai/cordis'
+// Type-only loads that activate the service / slot-map declaration merges on
+// the cordis Context (the browser-side service providers). Erased at build.
+import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// 0.1.5: `ctx.slots` / `ctx.uiRenderer` come from the UI renderer, while
+// `ctx.sessions` / `ctx.workspaces` moved to the API controller plugins —
+// together they replace the removed `@deepseek-ai/dsh-client-runtime`.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+// `conversation.chat.node` and the node owner face (openFile /
+// renderMessageImages) are declared by the Chat target.
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+
+/** Browser cordis services this client plugin needs. */
+export const inject = ['slots', 'sessions', 'locale']
+
+/**
+ * Client plugin body: register the dictionaries and every UI contribution.
+ * Every failure-prone registration degrades instead of crashing the
+ * composition (official seat conflicts stay local to the missing seat).
+ *
+ * 0.1.5 removed this plugin's prose file-mention provider: `chatFileMentions`
+ * is now owned outright by the official `dsh-client-ui-deliverables` plugin
+ * ("all policy lives here"), whose vocabulary is the turn's write/edit
+ * products. Providing it here became a duplicate-service boot failure, and
+ * there is no third-party extension point. Assistant prose therefore renders
+ * an upload path as inert inline code; the plugin's own bubble (below) still
+ * hides the path and shows the file card.
+ * @param ctx - client root context.
+ */
+export function apply(ctx: Context) {
+  injectCss()
+  ctx.effect(() => disposeSendAttachments, `${NS}: send attachment hooks`)
+  ctx.effect(() => ctx.locale.register(NS, dicts), `${NS}: dictionaries`)
+  // Stable per-namespace translate (bind caches per namespace; same reference
+  // every call), used by non-component code paths (upload errors).
+  const t = ctx.locale.bind(NS)
+
+  // Slot conflicts (duplicate cell ids) degrade instead of crashing. The
+  // thunk form keeps the register call fully typed (the literal options are
+  // checked against the declared slot map before the guard runs); a failed
+  // registration returns a no-op disposer so the inject chain stays
+  // well-typed.
+  const guarded = (label: string, register: () => () => void): (() => void) => {
+    try {
+      return register()
+    } catch (err) {
+      console.warn(`[dsh-upload-button] slot "${label}" registration failed; that UI seat stays absent:`, err)
+      return () => {}
+    }
+  }
+
+  ctx.slots.inject('conversation.input.left', () => guarded('conversation.input.left', () =>
+    ctx.slots.register({
+      name: 'conversation.input.left',
+      id: 'upload-file-button',
+      order: 0,
+      locale: NS,
+      inject: (sessionId) => ({
+        attach: (file: File) => attachFile(ctx.sessions, sessionId, file, t)
+      })
+    }, UploadButton)
+  ))
+
+  ctx.slots.inject('conversation.input.dock', () => guarded('conversation.input.dock', () =>
+    ctx.slots.register({
+      name: 'conversation.input.dock',
+      id: 'upload-file-dock',
+      order: 5,
+      locale: NS
+    }, UploadDock)
+  ))
+
+  // Shadow the official user-message bubble (keyed `conversation.chat.node`,
+  // official priority 0; lowest wins) so the sent message never displays the
+  // upload path — the bubble renders the words only, with floating file cards
+  // above, while the message the model receives keeps the paths verbatim.
+  // On any registration conflict the official renderer stays in place.
+  for (const key of ['user', 'steering'] as const) {
+    ctx.slots.inject('conversation.chat.node', () => guarded(`conversation.chat.node:${key}`, () =>
+      ctx.slots.register({
+        name: 'conversation.chat.node',
+        key,
+        priority: -1,
+        locale: NS
+      }, UserMessageWithUploads)
+    ))
+  }
+}

@@ -1,0 +1,12 @@
+# dsh-plugin-doc-companion bundle patch: the document-companion reader panel
+# (browser half) plus the doc_* study tools (host half). The row id must match
+# the plugin's exported cordis `name`.
+- insert:
+    - id: doc-companion
+      name: 'dsh-plugin-doc-companion'
+      config:
+        maxBytes: 268435456
+        maxImageBytes: 20971520
+        textBlockChars: 2600
+        maxParagraphsPerBlock: 40
+        maxRowsPerBlock: 50

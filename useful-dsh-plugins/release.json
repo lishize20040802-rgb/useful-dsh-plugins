@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "version": "0.5.0",
+  "tag": "v0.5.0",
+  "packages": [
+    {
+      "name": "dsh-plugin-doc-companion",
+      "version": "0.1.2",
+      "filename": "dsh-plugin-doc-companion-0.1.2.tgz",
+      "sha256": "c92f743775812ae170ed932b36d95b71e6299d8fb3e41b48daa28a44c730f330"
+    },
+    {
+      "name": "dsh-plugin-vision-reader",
+      "version": "0.2.2",
+      "filename": "dsh-plugin-vision-reader-0.2.2.tgz",
+      "sha256": "f260c7b9f845862e46f721d240299ec619be401910517f02973ff4d2987db6e7"
+    },
+    {
+      "name": "dsh-plugin-voice-input",
+      "version": "0.3.0",
+      "filename": "dsh-plugin-voice-input-0.3.0.tgz",
+      "sha256": "057c705ebff160d5e5c0d828e17daecafd1bcff7e08b61dfd4d530be1c274bcf"
+    },
+    {
+      "name": "dsh-upload-button",
+      "version": "0.3.2",
+      "filename": "dsh-upload-button-0.3.2.tgz",
+      "sha256": "dfbff712c48b69428cb8d6f4542c568446edd6a11528b4c9c90fc8634aacaf52"
+    },
+    {
+      "name": "useful-dsh-plugin-manager",
+      "version": "0.3.0",
+      "filename": "useful-dsh-plugin-manager-0.3.0.tgz",
+      "sha256": "a28330557192e78210323c001903731d10f131394ea98be051b789ae01138948"
+    }
+  ]
+}

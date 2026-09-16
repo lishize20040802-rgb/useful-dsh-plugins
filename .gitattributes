@@ -1,0 +1,12 @@
+* text=auto eol=lf
+*.js text eol=lf
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.mjs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.ps1 text eol=crlf

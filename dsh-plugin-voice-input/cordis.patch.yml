@@ -1,0 +1,28 @@
+# dsh-plugin-voice-input bundle patch: one insert registering the dual-face plugin.
+# The row id must match the node half's exported cordis `name`.
+#
+# There is no credential here and none is needed: recognition runs entirely on
+# this machine (sherpa-onnx offline CLI + SenseVoice-Small ONNX). On first use
+# the runtime (~19 MB engine + ~228 MB model, totalling ~258 MB) is fetched
+# into `runtimeDir` through the proxy the machine already uses. This file stays
+# key-free so the package remains safe to share.
+- insert:
+    - id: voice-input
+      name: 'dsh-plugin-voice-input'
+      config:
+        # Runtime root holding bin/ (engine CLI + DLLs) and models/sense-voice/.
+        # Empty = <DSH_HOME>/third-party/data/voice-input.
+        # Existing <DSH_HOME>/voice-input is reused; relative overrides use DSH_HOME.
+        runtimeDir: ''
+        # SenseVoice language: auto | zh | en | ja | ko | yue
+        language: 'zh'
+        # Inverse text normalization (十点 → 10点)
+        itn: true
+        # CPU threads for the ONNX session; 0 = auto (half the cores, 2…8)
+        threads: 0
+        # Fetch the engine + model on first use when they are missing
+        autoProvision: true
+        # Proxy for that download; empty = HTTPS_PROXY/HTTP_PROXY, else the
+        # Windows system proxy
+        proxy: ''
+        maxBytes: 67108864

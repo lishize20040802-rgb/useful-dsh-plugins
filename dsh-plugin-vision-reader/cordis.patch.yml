@@ -1,0 +1,10 @@
+# dsh-plugin-vision-reader bundle patch: one insert registering the dual-face plugin.
+# The row id must match the node half's exported cordis `name`.
+# Defaults are portable and need no configuration: vision routes through
+# DeepSeek's built-in multimodal model, so no extra API key is required.
+- insert:
+    - id: vision-reader
+      name: 'dsh-plugin-vision-reader'
+      config:
+        provider: deepseek-official
+        model: deepseek-v4-flash-vision-exp

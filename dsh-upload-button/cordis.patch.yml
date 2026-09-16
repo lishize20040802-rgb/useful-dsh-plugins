@@ -1,0 +1,9 @@
+# dsh-upload-button bundle patch: one insert registering the dual-face plugin.
+# The row id must match the node half's exported cordis `name`.
+# Config defaults are portable; override `uploadDir` per deployment (e.g. to a
+# directory visible to the agent's workspace) in a later patch layer.
+- insert:
+    - id: upload-button
+      name: 'dsh-upload-button'
+      config:
+        maxBytes: 67108864

@@ -1,0 +1,39 @@
+{
+  "name": "useful-dsh-plugins",
+  "version": "0.5.0",
+  "description": "Install and manage useful community DSH plugins in the official DSH home with verified release archives.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek",
+    "harness",
+    "voice",
+    "attachments",
+    "plugin-manager"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lishize20040802-rgb/useful-dsh-plugins.git",
+    "directory": "useful-dsh-plugins"
+  },
+  "files": [
+    "scripts",
+    "release.json",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "testedDSHVersions": [
+    "0.1.5-rc.2"
+  ],
+  "bin": {
+    "useful-dsh-plugins": "./scripts/setup.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
