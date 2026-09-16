@@ -12,7 +12,34 @@ Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 | [Document companion](dsh-plugin-doc-companion/README.md) | Document display, extraction, and search. |
 | [Plugin manager](useful-dsh-plugin-manager/README.md) | Manage third-party profile plugins; official host plugins are outside its scope. |
 
-[Rigor 4](https://github.com/lishize20040802-rgb/dsh-rigor-4) has its own repository and installation lifecycle.
+## Plugin features
+
+### Voice input: turn speech into an editable draft
+
+- Hold the composer's microphone button or the configured shortcut to record. Release it to transcribe and append text to the draft, then edit and send it when ready.
+- SenseVoiceSmall runs on the local CPU and supports Chinese, English, Japanese, Korean and Cantonese. After downloading the model and engine, recognition works offline without a cloud speech account.
+
+### Upload button: attach files to a conversation
+
+- Click the upload button in the composer toolbar to choose one or more files and preview them as cards without changing the text being edited. Failed sends retain the cards for retrying. The configurable per-file limit defaults to 64 MiB.
+- Remove attachments before sending, deduplicate identical uploads, and open sent attachments from their cards in chat history. This plugin transfers files; pair it with document companion when you want the agent to read document contents.
+
+### Vision reader: inspect images with an agent
+
+- Pasting images into a conversation automatically saves local copies while retaining the original images in the message. PNG, JPEG, WebP and GIF are supported, with up to 10 images per operation.
+- The separate `vision` tool takes an image path and a question to a configured vision model for tasks such as screenshot analysis, reading image text and explaining charts. This uses a model provider; the main conversation model must also accept image input.
+
+### Document companion: read and discuss documents side by side
+
+- Click the book button in the composer toolbar to open a reading panel beside the chat. It supports PDF, DOCX, XLSX, CSV, TXT and Markdown, with continuous scrolling, single-page mode and adjustable panel width.
+- Share the current reading position with the agent to ask about the visible page, read a specified page or block, search extracted text, jump to a position or switch documents. PDF pages are read through a vision model by default, requiring a configured, working model provider.
+
+### Plugin manager: manage third-party plugins and DSH updates
+
+- Open **Settings → Plugins → Manage** to inspect third-party plugin versions, runtime state and data locations, enable or disable plugins, and restore disables made by the manager. Changes take effect live when the host and plugin support it.
+- Check updates and reinstall supported npm-sourced plugins; update this collection through its shared installer. A separate **DSH host update** section supports standard global npm installations. Official plugins are excluded from ordinary plugin toggles; replacing package code or upgrading DSH still requires a restart.
+
+[Rigor 4](https://github.com/lishize20040802-rgb/dsh-rigor-4) records requirements, plans, execution evidence, child tasks and independent reviews to help assess an agent's completion claims. It has its own repository and installer and is not included in the five-plugin collection above.
 
 ## Install and remove
 
