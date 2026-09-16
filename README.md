@@ -2,7 +2,7 @@
 
 [中文](README.zh.md)
 
-Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Independent project; not affiliated with DeepSeek. Requires Node.js 22 or newer; locally tested with **DSH 0.1.5-rc.2 and Node.js 24.18 on Windows**. DSH is a developer preview: a new host version needs compatibility checks.
+Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Independent project; not affiliated with DeepSeek. Requires Node.js 24 or newer; locally tested with **DSH 0.1.5-rc.2 and Node.js 24.18 on Windows**. DSH is a developer preview: a new host version needs compatibility checks.
 
 | Plugin | Purpose |
 | --- | --- |
@@ -67,6 +67,8 @@ Automatic engine provisioning currently targets Windows x64. Other platforms req
 New installations use `<DSH_HOME>/third-party/data/voice-input`; an existing legacy runtime and explicitly configured absolute paths remain supported. Relative plugin configuration paths resolve against DSH's data home, not the terminal's current directory. Package assets resolve relative to their own package.
 
 ## Development and host upgrades
+
+To update a standard npm-global DSH installation from the WebUI, open **Settings → Plugins → Manage → DSH host update**. The manager checks the official version, saves the previous host archive, and runs the update after the displayed confirmation. Restart DSH afterwards. Official modules remain excluded from ordinary third-party plugin operations. See the [manager guide](useful-dsh-plugin-manager/README.md) for supported installations and recovery limits.
 
 Install root development dependencies, then each plugin's development dependencies with `npm install --legacy-peer-deps`. Run `npm run build`, `npm test`, `npm run check:release`, then `npm run pack:plugins`. Archives appear in `artifacts/` and include built JavaScript. The SDK is provided by DSH at runtime, not copied into plugin bundles. Synthetic document fixtures are generated from source; personal files and recordings are excluded.
 

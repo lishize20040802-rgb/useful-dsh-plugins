@@ -31,7 +31,7 @@
     "useful-dsh-plugins": "./scripts/setup.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "test": "node --test"

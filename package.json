@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Community plugins for DeepSeek Harness; source and release tooling.",
   "license": "MIT",
-  "engines": { "node": ">=22" },
+  "engines": { "node": ">=24" },
   "scripts": {
     "build": "node scripts/packages.mjs build",
     "test": "node scripts/packages.mjs test",
@@ -16,6 +16,9 @@
     "@deepseek-ai/cordis": "4.0.2",
     "@deepseek-ai/schemastery": "3.18.2",
     "@deepseek-ai/dsh": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-attachment": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-fs": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-settings": "0.1.5-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.1.5-rc.2",
     "@deepseek-ai/dsh-client-ui-primitives": "0.1.5-rc.2",
     "@deepseek-ai/dsh-client-store": "0.1.5-rc.2",

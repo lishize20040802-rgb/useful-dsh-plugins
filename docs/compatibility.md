@@ -15,6 +15,6 @@ Routes, timers, event subscriptions, DOM additions and workers must be owned by 
 
 路由、定时器、事件订阅、DOM 与工作进程必须接入 Cordis 的释放生命周期。管理器不能让不释放资源的第三方插件自动具备可靠热加载能力。官方核心插件与管理器自身通信基础不属于第三方启停目标。
 
-Do not infer that a green unit test proves a new DSH version works. Validate package resolution, bundle composition, a real host start, frontend load, one representative operation, and disable/re-enable behavior. Keep SDK imports external. Keep model/cache/user-data directories outside the installation. A failed install may have changed a manifest even if the launcher exits nonzero: inspect the manifest and bundle list before retrying.
+Do not infer that a green unit test proves a new DSH version works. Validate package resolution, bundle composition, a real host start, frontend load, one representative operation, and disable/re-enable behavior. Keep SDK imports external. Store third-party packages and shared runtime data inside the stable `DSH_HOME/third-party` directory; do not put them inside the replaceable npm installation of the host. A failed install may have changed a manifest even if the launcher exits nonzero: inspect the manifest and bundle list before retrying.
 
-单元测试通过不等于新版 DSH 已兼容；还应核对包解析、bundle 组合、真实启动、前端加载、代表性操作和停用/重启用。SDK 导入保持 external，模型/缓存/用户数据保存在安装目录之外。安装命令失败也可能已经改变清单，重试前须核对依赖和 bundle 注册。
+单元测试通过不等于新版 DSH 已兼容；还应核对包解析、bundle 组合、真实启动、前端加载、代表性操作和停用/重启用。SDK 导入保持 external，第三方包与共享运行数据统一放在稳定的 `DSH_HOME/third-party` 内，避免混入更新时会被替换的宿主 npm 安装目录。安装命令失败也可能已经改变清单，重试前须核对依赖和 bundle 注册。

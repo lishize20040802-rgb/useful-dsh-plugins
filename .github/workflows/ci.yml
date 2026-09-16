@@ -4,7 +4,9 @@ permissions:
   contents: read
 jobs:
   installer:
+    timeout-minutes: 10
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
         node: [22, 24]
@@ -19,6 +21,7 @@ jobs:
       - run: npm pack --dry-run --ignore-scripts
         working-directory: useful-dsh-plugins
   plugin:
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:

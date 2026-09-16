@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的社区插件集合，与 DeepSeek 官方无隶属关系。需要 Node.js 22 或更新版本；本地已验证环境为 **Windows、DSH 0.1.5-rc.2 和 Node.js 24.18**。DSH 仍在开发预览阶段，升级本体后需要重新核对兼容性。
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的社区插件集合，与 DeepSeek 官方无隶属关系。需要 Node.js 24 或更新版本；本地已验证环境为 **Windows、DSH 0.1.5-rc.2 和 Node.js 24.18**。DSH 仍在开发预览阶段，升级本体后需要重新核对兼容性。
 
 | 插件 | 功能 |
 | --- | --- |
@@ -67,6 +67,8 @@ npm 安装器与 GitHub 安装包使用相同的内部目录布局，Windows 包
 新安装默认使用 `<DSH_HOME>/third-party/data/voice-input`；兼容已有旧模型目录及显式绝对路径。插件配置中的相对路径以 DSH 数据目录为基准，不随终端启动位置变化；插件自带资源相对于插件自身目录定位。
 
 ## 开发和升级 DSH
+
+标准 npm 全局安装的 DSH 可以在 **设置 → 插件 → 管理 → DSH 本体更新** 中直接更新。管理器检查官方版本、保存旧版宿主安装包，在界面确认后执行更新；完成后重启 DSH。普通第三方插件操作仍排除所有官方模块。支持的安装方式及恢复范围见[管理器说明](useful-dsh-plugin-manager/README.zh.md)。
 
 先安装仓库根目录开发依赖，再在各插件目录执行 `npm install --legacy-peer-deps` 安装开发依赖。根目录执行 `npm run build`、`npm test`、`npm run check:release`，最后执行 `npm run pack:plugins`。安装包输出到 `artifacts/`，包含构建后的 JavaScript。DSH SDK 由宿主运行时提供，不复制进插件。文档测试样本从固定内容生成，仓库不包含个人文件或录音。
 

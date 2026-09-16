@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Readable } from 'node:stream'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -11,7 +11,9 @@ import { parse } from 'yaml'
 import { createHandler, apply, resolveProfileDir, profileStoreDir, nativeStoreArgument, addManagedDisable } from '../lib/index.js'
 
 function setup(t, specs = { 'my-plugin': '^1.0.0', other: '^1.0.0', 'useful-dsh-plugin-manager': '^0.3.0', '@deepseek-ai/dsh-base': '^0.1.5' }) {
-  const home = mkdtempSync(join(tmpdir(), 'dsh-manager-'))
+  // Windows runners may expose TEMP via an 8.3 alias. Keep the fixture's
+  // identity canonical, as the manager does when resolving the active profile.
+  const home = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-manager-')))
   t.after(() => rmSync(home, { recursive: true, force: true }))
   const dir = join(home, 'profiles', 'web'); mkdirSync(dir, { recursive: true })
   const manifest = { dependencies: specs, dsh: { profile: { bundles: Object.keys(specs), patchReload: 'live' } } }
@@ -218,6 +220,14 @@ test('pnpm YAML and JSON metadata are parsed, malformed metadata fails closed', 
   }
   writeFileSync(file, '[ invalid')
   await assert.rejects(profileStoreDir(s.dir), { code: 'INVALID_STORE_METADATA' })
+})
+
+test('profile resolution returns the canonical directory through a filesystem alias', async t => {
+  const s = setup(t), alias = join(s.home, 'profile-alias')
+  symlinkSync(s.dir, alias, process.platform === 'win32' ? 'junction' : 'dir')
+  assert.notEqual(alias, s.dir)
+  assert.equal(await resolveProfileDir(alias), s.dir)
+  assert.equal(await resolveProfileDir(undefined, pathToFileURL(alias + sep).href), s.dir)
 })
 test('HTTP trust fence checks socket, host, origin, metadata, method and JSON size', async t => {
   const s = setup(t)

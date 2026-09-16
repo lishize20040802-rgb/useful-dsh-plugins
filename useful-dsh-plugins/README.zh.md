@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-零运行依赖的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 社区插件安装器，安装本地语音、附件上传、视觉读图、文档伴读和插件管理器。要求 Node 20 或更高版本，并已有官方 DSH 与可用的 pnpm。
+零运行依赖的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 社区插件安装器，安装本地语音、附件上传、视觉读图、文档伴读和插件管理器。要求 Node 24 或更高版本，并已有官方 DSH 与可用的 pnpm。
 
 ## 安装
 

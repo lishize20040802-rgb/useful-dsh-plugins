@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { gzipSync } from 'node:zlib'
 import { PACKAGE_NAMES, sha256, validateRelease, inspectArchive, findDsh, buildPlan, preview, applySetup, applyUninstall, parseArgs, parseStoreDirMetadata, nativeCommand } from '../scripts/setup.mjs'
 
@@ -28,8 +29,11 @@ function archive(name, version = '1.2.3', extra = []) {
   ]))
 }
 async function fixture(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'useful-setup-'))
-  t.after(async () => { assert.equal(path.dirname(root), os.tmpdir()); assert.ok(path.basename(root).startsWith('useful-setup-')); await fs.rm(root, { recursive: true, force: true }) })
+  // Windows CI can expose the temp directory through an 8.3 alias (RUNNER~1).
+  // Keep fixture expectations canonical, just like discovery's fs.realpath().
+  const tempRoot = await fs.realpath(os.tmpdir())
+  const root = await fs.realpath(await fs.mkdtemp(path.join(tempRoot, 'useful-setup-')))
+  t.after(async () => { assert.equal(path.dirname(root), tempRoot); assert.ok(path.basename(root).startsWith('useful-setup-')); await fs.rm(root, { recursive: true, force: true }) })
   const home = path.join(root, 'home with spaces'), dsh = path.join(root, 'global DSH'), profile = path.join(home, 'profiles', 'web')
   await fs.mkdir(profile, { recursive: true }); await fs.mkdir(path.join(dsh, 'lib'), { recursive: true })
   await fs.writeFile(path.join(dsh, 'package.json'), json({ name: '@deepseek-ai/dsh', version: '0.1.5-rc.2' }))
@@ -178,6 +182,20 @@ test('npx cached DSH peers are never accepted as the user global installation', 
   await fs.writeFile(path.join(cached, 'package.json'), json({ name: '@deepseek-ai/dsh', version: '0.1.5-rc.2' }))
   await fs.writeFile(path.join(cached, 'lib', 'bin.js'), '// peer')
   await assert.rejects(findDsh({ dshPackage: cached }), /outside npx caches/)
+})
+
+test('an installation alias resolves to an executable canonical script path with spaces', async t => {
+  const f = await fixture(t), alias = path.join(f.root, 'DSH installation alias')
+  await fs.symlink(f.dsh, alias, process.platform === 'win32' ? 'junction' : 'dir')
+  const plan = await buildPlan({ ...f.options, dshPackage: alias })
+  assert.notEqual(alias, plan.dsh.root)
+  assert.equal(plan.dsh.root, await fs.realpath(f.dsh))
+  await fs.writeFile(path.join(f.dsh, 'lib', 'bin.js'), 'process.stdout.write(JSON.stringify(process.argv.slice(2)))')
+  const command = nativeCommand(plan, ['remove', 'synthetic-plugin'], 'synthetic argv probe')
+  assert.equal(command.args[0], path.join(await fs.realpath(f.dsh), 'lib', 'bin.js'))
+  const result = spawnSync(command.executable, command.args, { cwd: command.cwd, env: command.env, shell: false, encoding: 'utf8' })
+  assert.equal(result.status, 0, result.error?.message ?? result.stderr)
+  assert.deepEqual(JSON.parse(result.stdout), command.args.slice(1))
 })
 
 test('store metadata supports pnpm YAML/JSON and removes only its version suffix', () => {

@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-A dependency-free installer for five community [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugins: local voice input, file uploads, vision reading, document companion and the plugin manager. Requires Node 20 or newer and an existing official DSH installation with pnpm available.
+A dependency-free installer for five community [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugins: local voice input, file uploads, vision reading, document companion and the plugin manager. Requires Node 24 or newer and an existing official DSH installation with pnpm available.
 
 ## Install
 
