@@ -5,7 +5,7 @@
 // "block" is the shared unit between the reader panel and the agent tools —
 // PDF pages, text slices, paragraph groups and spreadsheet row groups all map
 // onto one 1-based block space.
-import { basename, extname, resolve, sep } from 'node:path'
+import { extname, resolve, sep, win32 } from 'node:path'
 
 /** Document kinds the companion can open. */
 export type DocKind = 'pdf' | 'text' | 'docx' | 'xlsx' | 'csv'
@@ -58,7 +58,9 @@ export function detectKind(fileName: string): DocKind | null {
  * @returns a display-safe file name, never empty.
  */
 export function sanitizeFileName(name: string): string {
-  const base = basename(name)
+  // Client filenames may use either separator, regardless of the host OS.
+  // win32.basename understands both forms and strips Windows drive prefixes.
+  const base = win32.basename(name)
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
     .replace(/[.\s]+$/g, '')
     .trim()

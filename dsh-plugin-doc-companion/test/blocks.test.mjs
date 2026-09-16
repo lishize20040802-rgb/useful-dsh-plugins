@@ -39,6 +39,16 @@ test('sanitizeFileName strips separators and keeps CJK', () => {
   assert.equal(sanitizeFileName('...'), 'document')
 })
 
+test('sanitizeFileName removes client directories for every supported path style', () => {
+  for (const name of [
+    '/home/fixture/课程/高等数学.pdf',
+    '\\\\server\\share\\课程\\高等数学.pdf',
+    'C:/fixture\\课程/高等数学.pdf',
+    'C:高等数学.pdf',
+    '..\\private/高等数学.pdf',
+  ]) assert.equal(sanitizeFileName(name), '高等数学.pdf', name)
+})
+
 test('makeDocId is unique and short', () => {
   const ids = new Set(Array.from({ length: 100 }, () => makeDocId()))
   assert.equal(ids.size, 100)

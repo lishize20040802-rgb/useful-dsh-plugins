@@ -7,7 +7,7 @@ import { defineTool } from "@deepseek-ai/dsh-tools";
 import { expandHomePath, resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 
 // src/blocks.ts
-import { basename, extname, resolve, sep } from "node:path";
+import { extname, resolve, sep, win32 } from "node:path";
 var TEXT_EXTS = /* @__PURE__ */ new Set([".txt", ".md", ".markdown", ".text"]);
 function detectKind(fileName) {
   const ext = extname(fileName).toLowerCase();
@@ -19,7 +19,7 @@ function detectKind(fileName) {
   return null;
 }
 function sanitizeFileName(name2) {
-  const base = basename(name2).replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[.\s]+$/g, "").trim();
+  const base = win32.basename(name2).replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[.\s]+$/g, "").trim();
   return base || "document";
 }
 function makeDocId() {
@@ -855,13 +855,13 @@ function makeSnippet(text, at, termLen, window) {
 
 // src/vision.ts
 import { readFile as readFile2 } from "node:fs/promises";
-import { basename as basename2 } from "node:path";
+import { basename } from "node:path";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
 var VISION_SYSTEM = "\u4F60\u662F\u4E00\u4E2A\u591A\u6A21\u6001\u89C6\u89C9\u8BC6\u522B\u4EE3\u7406\u3002\u7528\u6237\u4F1A\u7ED9\u4F60\u4E00\u5F20\u4E66\u672C/\u8BD5\u5377\u9875\u9762\u7684\u622A\u56FE\uFF0C\u4F60\u9700\u8981\u539F\u6837\u63D0\u53D6\u8FD9\u4E00\u9875\u7684\u5168\u90E8\u6587\u5B57\u5185\u5BB9\uFF0C\u5305\u62EC\u6B63\u6587\u3001\u516C\u5F0F\u3001\u8868\u683C\u91CC\u7684\u6587\u5B57\u3002\u4FDD\u6301\u539F\u6709\u5206\u6BB5\u548C\u7F16\u53F7\uFF0C\u53EA\u8F93\u51FA\u63D0\u53D6\u7684\u6587\u5B57\uFF0C\u4E0D\u8981\u89E3\u91CA\u3001\u4E0D\u8981\u603B\u7ED3\u3001\u4E0D\u8981\u6DFB\u52A0\u4EFB\u4F55\u8BF4\u660E\u3002";
 async function transcribeImage(llm, attachments, cfg, imagePath, instruction, signal) {
   try {
     const data = await readFile2(imagePath);
-    const ref = await attachments.saveImage({ data, mediaType: "image/png", name: basename2(imagePath) });
+    const ref = await attachments.saveImage({ data, mediaType: "image/png", name: basename(imagePath) });
     const content = [
       { type: "text", text: instruction },
       { type: "image", attachment: ref }
