@@ -2,20 +2,20 @@
 
 [English](README.md)
 
-0.3.0 在 DeepSeek Harness Web 设置中增加“管理”页，管理第三方 profile 插件，并提供独立的 DSH 整体更新入口。测试版本为 DSH `0.1.5-rc.2`；后续版本需要继续提供相同的公开 Loader、profile patch、WebServer 与设置槽位接口。
+0.3.1 在 DeepSeek Harness Web 设置中增加“管理”页，管理第三方 profile 插件，并提供独立的 DSH 整体更新入口。测试版本为 DSH `0.1.5-rc.2`；后续版本需要继续提供相同的公开 Loader、profile patch、WebServer 与设置槽位接口。
 
 ## 安装和卸载
 
 统一安装器将本套插件放入 DSH 数据目录，再通过原生 DSH CLI 注册：
 
 ```sh
-npx useful-dsh-plugins@0.5.0 setup
+npx useful-dsh-plugins@0.5.1 setup
 ```
 
 安装选项和发布包见[仓库说明](../README.zh.md)。也可单独安装管理器压缩包：
 
 ```sh
-dsh plugin --profile web add ./useful-dsh-plugin-manager-0.3.0.tgz
+dsh plugin --profile web add ./useful-dsh-plugin-manager-0.3.1.tgz
 # 首次安装后重启 DSH，加载插件和浏览器页签。
 dsh plugin --profile web remove useful-dsh-plugin-manager
 ```

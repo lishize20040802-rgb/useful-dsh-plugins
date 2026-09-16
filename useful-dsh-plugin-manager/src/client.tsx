@@ -5,7 +5,7 @@ const NS = 'settings.pluginManager'
 const zh = {
   tab: '管理', loading: '读取插件…', retry: '刷新', check: '检查插件更新', restore: '恢复管理器停用项',
   enable: '启用', disable: '停用', update: '更新', repair: '重装同一版本', protected: '管理器自身受保护',
-  local: '本地或非 registry 来源：请通过原安装方式更新；本套插件使用 npx useful-dsh-plugins@0.5.0 setup', owner: '由聚合包管理', current: '当前', latest: '最新',
+  local: '本地或非 registry 来源：请通过原安装方式更新；本套插件使用 npx useful-dsh-plugins@0.5.1 setup', owner: '由聚合包管理', current: '当前', latest: '最新',
   restart: '已保存；需要重启 DSH 后生效。当前任务不会被自动停止。', live: '已在当前 Loader 中确认生效。',
   saved: '操作完成。', noRows: '当前没有可管理的第三方插件行。', failed: '操作失败',
   scope: '第三方插件', packages: '已安装包', paths: '数据位置（相对 DSH_HOME）',
@@ -19,7 +19,7 @@ const zh = {
 const en = {
   tab: 'Manage', loading: 'Reading plugins…', retry: 'Refresh', check: 'Check plugin updates', restore: 'Restore manager disables',
   enable: 'Enable', disable: 'Disable', update: 'Update', repair: 'Reinstall same version', protected: 'Manager itself is protected',
-  local: 'Local/non-registry source: use its original installer; for this suite run npx useful-dsh-plugins@0.5.0 setup', owner: 'Managed by bundle', current: 'Current', latest: 'Latest',
+  local: 'Local/non-registry source: use its original installer; for this suite run npx useful-dsh-plugins@0.5.1 setup', owner: 'Managed by bundle', current: 'Current', latest: 'Latest',
   restart: 'Saved; restart DSH to apply. Running tasks are not stopped automatically.', live: 'Applied state observed in the current Loader.',
   saved: 'Operation complete.', noRows: 'No manageable third-party rows in this profile.', failed: 'Operation failed',
   scope: 'Third-party plugins', packages: 'Installed packages', paths: 'Data locations (relative to DSH_HOME)',

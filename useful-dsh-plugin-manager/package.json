@@ -1,6 +1,6 @@
 {
   "name": "useful-dsh-plugin-manager",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Manage direct third-party DSH profile plugins with guarded patch toggles and native CLI package updates.",
   "keywords": [
     "deepseek",

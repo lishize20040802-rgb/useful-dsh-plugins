@@ -1,6 +1,6 @@
 {
   "name": "useful-dsh-plugins",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Install and manage useful community DSH plugins in the official DSH home with verified release archives.",
   "type": "module",
   "license": "MIT",

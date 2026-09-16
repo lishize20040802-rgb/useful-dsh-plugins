@@ -16,16 +16,16 @@ Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 
 ## Install and remove
 
-With DSH and pnpm already installed, one command installs the collection:
+With DSH and pnpm already installed, one command installs the collection. On Windows, close DSH before replacing or removing packages so native dependency files are not held open; start `dsh web` afterwards.
 
 ```sh
-npx --yes useful-dsh-plugins@0.5.0 setup
+npx --yes useful-dsh-plugins@0.5.1 setup
 ```
 
 The same installer is also available directly from the public GitHub release:
 
 ```sh
-npx --yes --package=https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.0/useful-dsh-plugins-0.5.0.tgz useful-dsh-plugins setup
+npx --yes --package=https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.1/useful-dsh-plugins-0.5.1.tgz useful-dsh-plugins setup
 ```
 
 Use `setup --preview` to inspect the plan first. The installer verifies release checksums, stores archives and extracted packages inside **`<DSH_HOME>/third-party/`**, backs up the profile manifest, and calls the official DSH CLI to register the five packages. DSH keeps its native runtime resolution under `profiles/<profile>/node_modules`; the installer does not patch the host installation. Re-run the versioned command to repair or update this collection. Existing custom data paths are preserved.
@@ -41,7 +41,7 @@ Use `setup --preview` to inspect the plan first. The installer verifies release 
   profiles/web/     native DSH plugin registrations and runtime dependencies
 ```
 
-Remove the collection with `npx --yes useful-dsh-plugins@0.5.0 uninstall`. Personal data is retained. Optional `--profile`, `--dsh-home`, `--dsh-package`, and `--store-dir` support custom installations. The older aggregate package is removed during migration to avoid duplicate bundle rows; the new npm package is a zero-dependency installer.
+Remove the collection with `npx --yes useful-dsh-plugins@0.5.1 uninstall`. Personal data is retained. Optional `--profile`, `--dsh-home`, `--dsh-package`, and `--store-dir` support custom installations. The older aggregate package is removed during migration to avoid duplicate bundle rows; the new npm package is a zero-dependency installer.
 
 For individual advanced installation, put the archive inside the same third-party archive directory and use the native CLI below.
 

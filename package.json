@@ -1,7 +1,7 @@
 {
   "name": "useful-dsh-plugins-source",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "description": "Community plugins for DeepSeek Harness; source and release tooling.",
   "license": "MIT",

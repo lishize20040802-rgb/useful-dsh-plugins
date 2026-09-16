@@ -25,6 +25,8 @@ function archive(name, version = '1.2.3', extra = []) {
     tarEntry('package/package.json', json(packageManifest(name, version))),
     tarEntry('package/cordis.patch.yml', '- insert: []\n'),
     tarEntry('package/lib/index.js', 'export const synthetic = true\n'),
+    tarEntry('package/lib/client.js', 'export const syntheticClient = true\n'),
+    tarEntry('package/lib/nested/feature.js', 'export const syntheticFeature = true\n'),
     ...extra, Buffer.alloc(1024),
   ]))
 }
@@ -44,14 +46,14 @@ async function fixture(t) {
   await fs.writeFile(path.join(profile, 'pnpm-lock.yaml'), 'before native lock\n')
   const data = path.join(home, 'third-party', 'data', 'retained.txt')
   await fs.mkdir(path.dirname(data), { recursive: true }); await fs.writeFile(data, 'user data remains local')
-  const archives = new Map(), release = { schemaVersion: 1, version: '0.5.0', tag: 'v0.5.0', packages: [] }
+  const archives = new Map(), release = { schemaVersion: 1, version: '0.5.1', tag: 'v0.5.1', packages: [] }
   for (const name of PACKAGE_NAMES) {
     const bytes = archive(name), filename = `${name}-1.2.3.tgz`
     archives.set(filename, bytes); release.packages.push({ name, version: '1.2.3', filename, sha256: sha256(bytes) })
   }
   const options = { dshHome: home, dshPackage: dsh, release, storeDir: path.join(root, 'native store') }
   const plan = await buildPlan(options), calls = [], fetched = []
-  const fetch = async url => { assert.ok(url.startsWith('https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.0/')); fetched.push(url); return new Response(archives.get(url.split('/').at(-1))) }
+  const fetch = async url => { assert.ok(url.startsWith('https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.1/')); fetched.push(url); return new Response(archives.get(url.split('/').at(-1))) }
   const run = async command => {
     calls.push(command)
     assert.equal(command.executable, process.execPath)
@@ -73,7 +75,11 @@ async function fixture(t) {
         manifest.dependencies[p.name] = 'file:' + p.archive
         if (!manifest.dsh.profile.bundles.includes(p.name)) manifest.dsh.profile.bundles.push(p.name)
         const installed = path.join(profile, 'node_modules', p.name)
-        await fs.mkdir(installed, { recursive: true }); await fs.writeFile(path.join(installed, 'package.json'), json(packageManifest(p.name, p.version)))
+        for (const entry of inspectArchive(await fs.readFile(p.archive), p)) {
+          const target = path.join(installed, ...entry.relative.split('/'))
+          if (entry.directory) await fs.mkdir(target, { recursive: true })
+          else { await fs.mkdir(path.dirname(target), { recursive: true }); await fs.writeFile(target, entry.bytes) }
+        }
       }
     } else if (command.label === 'refresh native lockfile') {
       for (const p of plan.packages) assert.equal(manifest.dependencies[p.name], p.dependency)
@@ -143,6 +149,40 @@ test('a matching digest cannot hide an archive with the wrong package version', 
   first.sha256 = sha256(bytes); f.archives.set(first.filename, bytes)
   await assert.rejects(applySetup(await buildPlan(f.options), { fetch: f.fetch, run: f.run }), /name, version or DSH bundle/)
   assert.equal(f.calls.length, 0)
+})
+
+test('native installation must contain verified release bytes even when its package name and version match', async t => {
+  for (const [file, missing] of [
+    ['lib/index.js', false],
+    ['lib/client.js', false],
+    ['lib/nested/feature.js', false],
+    ['cordis.patch.yml', false],
+    ['lib/index.js', true],
+  ]) await t.test(file + (missing ? ' missing' : ' stale'), async t => {
+    const f = await fixture(t), p = f.plan.packages[0]
+    await assert.rejects(applySetup(f.plan, { fetch: f.fetch, run: async command => {
+      await f.run(command)
+      if (command.label === 'refresh native lockfile') {
+        const target = path.join(f.profile, 'node_modules', p.name, ...file.split('/'))
+        if (missing) await fs.unlink(target)
+        else await fs.writeFile(target, 'synthetic stale same-version package bytes\n')
+        // A changed expanded copy must never become the verification source.
+        if (file === 'lib/index.js' && !missing) await fs.writeFile(path.join(p.expanded, ...file.split('/')), 'synthetic stale same-version package bytes\n')
+      }
+    } }), error => {
+      assert.ok(error.message.includes('Installed content differs from the verified release for ' + p.name + '@' + p.version + ': ' + file))
+      assert.match(error.message, /stale cached files/)
+      assert.match(error.message, /Stop DSH; run dsh plugin --profile web remove/)
+      assert.match(error.message, /rerun setup/)
+      assert.match(error.message, /Do not delete the pnpm store manually/)
+      assert.match(error.message, /Profile backup:.*[\s\S]*no automatic rollback/)
+      return true
+    })
+    const installed = JSON.parse(await fs.readFile(path.join(f.profile, 'node_modules', p.name, 'package.json')))
+    assert.equal(installed.name, p.name); assert.equal(installed.version, p.version)
+    assert.equal(sha256(await fs.readFile(p.archive)), p.sha256)
+    assert.equal(await fs.readFile(f.data, 'utf8'), 'user data remains local')
+  })
 })
 
 test('tar inspection rejects traversal, absolute paths, links and case-insensitive duplicates', () => {

@@ -5,7 +5,7 @@ param(
     [string]$StoreDir
 )
 $ErrorActionPreference = 'Stop'
-$installerArgs = @('--yes', 'useful-dsh-plugins@0.5.0')
+$installerArgs = @('--yes', 'useful-dsh-plugins@0.5.1')
 if ($Uninstall) {
     $installerArgs += 'uninstall'
 } else {

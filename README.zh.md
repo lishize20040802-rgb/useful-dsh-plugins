@@ -16,16 +16,16 @@
 
 ## 安装与卸载
 
-已安装 DSH 和 pnpm 后，执行一条命令：
+已安装 DSH 和 pnpm 后，执行一条命令。Windows 上替换或卸载包前先关闭 DSH，避免原生依赖文件被占用；完成后运行 `dsh web`。
 
 ```sh
-npx --yes useful-dsh-plugins@0.5.0 setup
+npx --yes useful-dsh-plugins@0.5.1 setup
 ```
 
 同一份安装器也可直接从公开的 GitHub Release 获取：
 
 ```sh
-npx --yes --package=https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.0/useful-dsh-plugins-0.5.0.tgz useful-dsh-plugins setup
+npx --yes --package=https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.1/useful-dsh-plugins-0.5.1.tgz useful-dsh-plugins setup
 ```
 
 可先使用 `setup --preview` 查看计划。安装器校验发布包摘要，将压缩包和解压后的插件统一收录到 **`<DSH_HOME>/third-party/`**，备份 profile 清单，再调用官方 DSH CLI 注册五个插件。DSH 仍在 `profiles/<profile>/node_modules` 内进行原生依赖解析，不修改本体安装。再次运行对应版本命令可修复或更新整套插件；已有自定义数据路径会保留。
@@ -41,7 +41,7 @@ npx --yes --package=https://github.com/lishize20040802-rgb/useful-dsh-plugins/re
   profiles/web/     DSH 原生插件注册与运行依赖
 ```
 
-整套卸载：`npx --yes useful-dsh-plugins@0.5.0 uninstall`，保留个人数据。支持 `--profile`、`--dsh-home`、`--dsh-package`、`--store-dir`。迁移时移除旧聚合包注册，避免重复加载；新的 npm 包是无依赖安装器。
+整套卸载：`npx --yes useful-dsh-plugins@0.5.1 uninstall`，保留个人数据。支持 `--profile`、`--dsh-home`、`--dsh-package`、`--store-dir`。迁移时移除旧聚合包注册，避免重复加载；新的 npm 包是无依赖安装器。
 
 单独安装时，将安装包放入相同第三方目录，再执行下面的原生命令。
 

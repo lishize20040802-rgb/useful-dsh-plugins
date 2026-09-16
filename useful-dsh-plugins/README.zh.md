@@ -7,8 +7,8 @@
 ## 安装
 
 ```sh
-npx --yes useful-dsh-plugins@0.5.0 setup --preview
-npx --yes useful-dsh-plugins@0.5.0 setup
+npx --yes useful-dsh-plugins@0.5.1 setup --preview
+npx --yes useful-dsh-plugins@0.5.1 setup
 ```
 
 第一条只预览，不下载插件或修改 profile；npx 本身可能下载这个小安装器。第二条会先按内置 SHA256 清单验证全部五个发布包，再调用用户实际安装的官方 DSH CLI。不会把 npx 缓存中的 DSH peer 副本当作全局安装。
@@ -30,17 +30,19 @@ npx --yes useful-dsh-plugins@0.5.0 setup
 
 安装后重启 DSH 并刷新网页。语音引擎/模型的准备方式见语音插件 README；此安装器不会暗中下载较大的语音模型。
 
+Windows 上替换或卸载包前先关闭 DSH，释放原生依赖文件。原生安装完成后，安装器逐字节核对实际 `lib/**` 与 `cordis.patch.yml` 是否等于已验证的发布包。同版本旧缓存或缺失文件会被报告为失败，即使包名和版本一致；错误中提供原生卸载重装提示及备份位置。
+
 ## 从旧聚合包迁移
 
-0.5.0 改为没有运行依赖、没有全局 `dsh.bundle` 的 CLI。本版不要以 `dsh plugin add useful-dsh-plugins` 为安装入口，应运行 `setup`。
+0.5.1 改为没有运行依赖、没有全局 `dsh.bundle` 的 CLI。本版不要以 `dsh plugin add useful-dsh-plugins` 为安装入口，应运行 `setup`。
 
 全部新发布包都验证并暂存后，安装器备份 profile 元数据。若原来的 useful 聚合包仍已安装，先通过官方 DSH 移除该依赖，再把五个插件直接安装到 profile，避免重复 bundle 行。其他依赖和已有配置保留。原生命令失败可能留下部分更改；错误会指出备份位置，不声称已自动回滚。
 
 ## 卸载
 
 ```sh
-npx --yes useful-dsh-plugins@0.5.0 uninstall --preview
-npx --yes useful-dsh-plugins@0.5.0 uninstall
+npx --yes useful-dsh-plugins@0.5.1 uninstall --preview
+npx --yes useful-dsh-plugins@0.5.1 uninstall
 ```
 
 卸载调用官方插件命令。发布包、解压代码、源码 checkout、备份和全部个人数据都保留。完成后重启 DSH、刷新网页。若用户自己在 patch 中覆盖了已移除插件的行，需要另行移除那些覆盖。
@@ -59,7 +61,7 @@ store 优先使用显式参数，其次 `npm_config_store_dir`，最后读取已
 
 ## 验证范围
 
-只下载固定 GitHub `v0.5.0` Release 下的五个命名文件。在任何原生安装前，完成摘要、包名、版本和 bundle 文件核对。解压限制大小，仅接受标准 npm tar 的普通文件和目录；拒绝链接、路径穿越和含糊路径。若已有解压代码被修改，安装器停止并保留修改，不直接覆盖。
+只下载固定 GitHub `v0.5.1` Release 下的五个命名文件。在任何原生安装前，完成摘要、包名、版本和 bundle 文件核对。解压限制大小，仅接受标准 npm tar 的普通文件和目录；拒绝链接、路径穿越和含糊路径。若已有解压代码被修改，安装器停止并保留修改，不直接覆盖。
 
 `node --test` 使用合成归档、模拟 HTTP 和原生 CLI 替身，验证预览、解压、摘要错误、store 选择、迁移顺序与卸载；不调用真实模型，也不下载大型依赖。这些测试不代表所有 pnpm/机器组合均已通过。实际核对的宿主版本是 DSH **0.1.5-rc.2**；升级不同版本前请查看预览。
 

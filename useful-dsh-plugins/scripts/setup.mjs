@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 export const PACKAGE_NAMES = Object.freeze(['dsh-plugin-doc-companion', 'dsh-plugin-vision-reader', 'dsh-plugin-voice-input', 'dsh-upload-button', 'useful-dsh-plugin-manager'])
-const RELEASE_BASE = 'https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.0/'
+const RELEASE_BASE = 'https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.1/'
 const SELF = 'useful-dsh-plugins'
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url))
 const MAX_ARCHIVE = 32 * 1024 * 1024, MAX_EXPANDED = 128 * 1024 * 1024
@@ -32,7 +32,7 @@ async function safeTarget(root, target) {
 }
 
 export function validateRelease(value) {
-  if (value?.schemaVersion !== 1 || value.version !== '0.5.0' || value.tag !== 'v0.5.0' || !Array.isArray(value.packages) || value.packages.length !== PACKAGE_NAMES.length) throw new Error('Unsupported release.json schema or version')
+  if (value?.schemaVersion !== 1 || value.version !== '0.5.1' || value.tag !== 'v0.5.1' || !Array.isArray(value.packages) || value.packages.length !== PACKAGE_NAMES.length) throw new Error('Unsupported release.json schema or version')
   const seen = new Set()
   for (const p of value.packages) {
     if (!PACKAGE_NAMES.includes(p.name) || seen.has(p.name)) throw new Error('Release contains an unexpected or duplicate package')
@@ -294,9 +294,21 @@ export async function applySetup(plan, { fetch: fetchImpl = globalThis.fetch, ru
     await fs.writeFile(plan.manifest, json(after))
     await run(nativeCommand(plan, ['install', '--lockfile-only'], 'refresh native lockfile'))
     const verified = await readJson(plan.manifest)
-    for (const p of plan.packages) {
-      const installed = await readJson(path.join(plan.profileRoot, 'node_modules', p.name, 'package.json'))
+    for (const { p, entries } of staged) {
+      const installedRoot = path.join(plan.profileRoot, 'node_modules', p.name)
+      const installed = await readJson(path.join(installedRoot, 'package.json'))
       if (installed?.name !== p.name || installed.version !== p.version || verified.dependencies?.[p.name] !== p.dependency || !verified.dsh?.profile?.bundles?.includes(p.name)) throw new Error('Native package or bundle verification failed for ' + p.name)
+      // pnpm can retain an older local tarball with the same name and version.
+      // Compare against the already verified archive bytes, not the mutable
+      // extracted package copy, while leaving dependency files to pnpm.
+      for (const entry of entries.filter(item => !item.directory && (item.relative.startsWith('lib/') || item.relative === 'cordis.patch.yml'))) {
+        const actual = await read(path.join(installedRoot, ...entry.relative.split('/')))
+        if (!actual?.equals(entry.bytes)) {
+          throw new Error('Installed content differs from the verified release for ' + p.name + '@' + p.version + ': ' + entry.relative +
+            '. pnpm may have reused stale cached files for the same version. Stop DSH; run dsh plugin --profile ' + plan.profile + ' remove ' + p.name +
+            (plan.storeDir ? ' with the same --store-dir' : '') + ', then rerun setup to reinstall the verified archive. Do not delete the pnpm store manually.')
+        }
+      }
     }
     return { installed: plan.packages.map(p => p.name + '@' + p.version), backup: savedBackup, profile: plan.profile, restartRequired: true, dataPreserved: true }
   } catch (error) {

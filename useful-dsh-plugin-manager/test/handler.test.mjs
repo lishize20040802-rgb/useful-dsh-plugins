@@ -260,6 +260,54 @@ test('apply anchors at active root Loader profile and tolerates route conflict',
   assert.doesNotThrow(() => apply({ effect: fn => fn(), webServer: { register: () => { throw Error('duplicate') } } }, {}))
 })
 
+test('HTTP availability precedes late HMR activation, and apply rechecks the active service on every request', { timeout: 5000 }, async t => {
+  const s = setup(t), ctx = new Context(), tree = {}
+  ctx.baseUrl = pathToFileURL(s.dir + sep).href
+  ctx.fiber.entry = { parent: { tree } }
+  const started = Promise.withResolvers(), ready = Promise.withResolvers()
+  t.after(() => ready.resolve())
+  t.after(() => ctx.fiber.dispose())
+  let handler
+  ctx.provide('webServer', { register: route => { handler = route.handler; return () => {} } })
+  ctx.provide('loader', { entries: () => {
+    // Synthetic watcher projection: the existing observation check still has to
+    // see both the requested enabled value and its corresponding Fiber state.
+    const patch = parse(s.patch())
+    return s.rows.map(row => {
+      const disabled = patch.some(item => item.id === row.id && item.disabled)
+      return { id: row.id, parent: { tree }, options: { id: row.id, name: row.module }, disabled, fiber: disabled ? undefined : { state: 2 } }
+    })
+  } })
+  apply(ctx, {})
+  assert.equal((await call(handler, '/state')).data.live, false)
+  const hmr = ctx.plugin({ name: 'delayed-profile-hmr', async apply(serviceCtx) {
+    serviceCtx.provide('hmr', { registerConfig() { assert.fail('manager must use the existing host watcher, not register another') } })
+    started.resolve()
+    await ready.promise
+  } })
+  await started.promise
+  // Cordis exposes a provided-but-loading service only to an explicit non-strict
+  // lookup. An HTTP response and a declared method do not establish readiness.
+  assert.equal(hmr.state, 1)
+  assert.equal(typeof ctx.get('hmr', false).registerConfig, 'function')
+  assert.equal(ctx.get('hmr'), undefined)
+  assert.equal((await call(handler, '/state')).data.live, false)
+  ready.resolve()
+  await hmr
+  assert.equal(hmr.state, 2)
+  assert.equal((await call(handler, '/state')).data.live, true)
+  const disabled = await call(handler, '/disable', { id: 'my-row' })
+  assert.equal(disabled.data.reload, 'observed')
+  assert.equal(disabled.data.needsRestart, false)
+  s.manifest.dsh.profile.patchReload = 'startup'
+  writeFileSync(join(s.dir, 'package.json'), JSON.stringify(s.manifest))
+  assert.equal((await call(handler, '/state')).data.live, false)
+  s.manifest.dsh.profile.patchReload = 'live'
+  writeFileSync(join(s.dir, 'package.json'), JSON.stringify(s.manifest))
+  await hmr.dispose()
+  assert.equal((await call(handler, '/state')).data.live, false)
+})
+
 test('apply limits toggles and restore to its profile tree while keeping ordinary group children', async t => {
   const s = setup(t), ctx = new Context(), tree = {}, includedTree = {}
   ctx.baseUrl = pathToFileURL(s.dir + sep).href

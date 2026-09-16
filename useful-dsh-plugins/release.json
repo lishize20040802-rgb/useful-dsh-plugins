@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "0.5.0",
-  "tag": "v0.5.0",
+  "version": "0.5.1",
+  "tag": "v0.5.1",
   "packages": [
     {
       "name": "dsh-plugin-doc-companion",
@@ -29,9 +29,9 @@
     },
     {
       "name": "useful-dsh-plugin-manager",
-      "version": "0.3.0",
-      "filename": "useful-dsh-plugin-manager-0.3.0.tgz",
-      "sha256": "a28330557192e78210323c001903731d10f131394ea98be051b789ae01138948"
+      "version": "0.3.1",
+      "filename": "useful-dsh-plugin-manager-0.3.1.tgz",
+      "sha256": "e136b74d0f28363c059ad75944f073997210633d5645ce1a812db6f48079cfb0"
     }
   ]
 }

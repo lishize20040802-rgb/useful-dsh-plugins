@@ -7,8 +7,8 @@ A dependency-free installer for five community [DeepSeek Harness](https://github
 ## Install
 
 ```sh
-npx --yes useful-dsh-plugins@0.5.0 setup --preview
-npx --yes useful-dsh-plugins@0.5.0 setup
+npx --yes useful-dsh-plugins@0.5.1 setup --preview
+npx --yes useful-dsh-plugins@0.5.1 setup
 ```
 
 The first command previews without downloading plugins or changing the profile. `npx` itself may download this small installer. The second command verifies all five release archives against their bundled SHA256 manifest before invoking the user's actual official DSH CLI. It ignores DSH peer copies under npx caches.
@@ -30,17 +30,19 @@ The source code remains available in the repository; this command extracts the b
 
 Restart DSH and refresh the browser after installation. Voice engine/model provisioning is documented in the voice plugin's README; this installer does not silently download the large voice model.
 
+On Windows, close DSH before replacing or removing packages to release native dependency files. After native installation, the installer compares installed `lib/**` and `cordis.patch.yml` with the verified archive bytes. A stale same-version cache or missing file is reported as a failure, even when package metadata matches; the error gives native remove/reinstall instructions and the backup location.
+
 ## Migration from the old aggregate package
 
-Version 0.5.0 is a CLI with no runtime dependencies and no global `dsh.bundle`. Do not use `dsh plugin add useful-dsh-plugins` as the installation entry point for this release. Run `setup` instead.
+Version 0.5.1 is a CLI with no runtime dependencies and no global `dsh.bundle`. Do not use `dsh plugin add useful-dsh-plugins` as the installation entry point for this release. Run `setup` instead.
 
 After every new archive has been verified and staged, setup saves profile metadata backups. If the old aggregate package is installed, it removes that dependency through native DSH first, then installs the five plugins as direct profile dependencies to avoid duplicate bundle rows. Other dependencies and existing configuration are retained. A native failure can leave partial changes; the error identifies the backup location and does not claim automatic rollback.
 
 ## Uninstall
 
 ```sh
-npx --yes useful-dsh-plugins@0.5.0 uninstall --preview
-npx --yes useful-dsh-plugins@0.5.0 uninstall
+npx --yes useful-dsh-plugins@0.5.1 uninstall --preview
+npx --yes useful-dsh-plugins@0.5.1 uninstall
 ```
 
 Removal uses the native DSH plugin command. Archives, extracted code, source checkouts, backups and all personal data remain on disk. Restart DSH and refresh the page afterward. If your own patch contains overrides targeting removed plugin rows, remove those overrides separately.
@@ -59,7 +61,7 @@ Store selection uses the explicit flag, then `npm_config_store_dir`, then the ex
 
 ## Validation and limits
 
-The release downloads only the five named assets from the fixed `v0.5.0` GitHub release. SHA256 and package name/version/bundle checks run before any native installation. Extraction accepts bounded standard npm tar entries and rejects links, traversal and ambiguous paths. A modified existing code copy is preserved by stopping setup rather than overwriting it.
+The release downloads only the five named assets from the fixed `v0.5.1` GitHub release. SHA256 and package name/version/bundle checks run before any native installation. Extraction accepts bounded standard npm tar entries and rejects links, traversal and ambiguous paths. A modified existing code copy is preserved by stopping setup rather than overwriting it.
 
 `node --test` runs synthetic archives, fake HTTP responses and a mock native CLI. These tests verify planning, extraction, integrity failures, store selection, migration ordering and uninstall behavior without a live model or large dependency download. They do not prove every pnpm/environment combination. The recorded tested host version is DSH **0.1.5-rc.2**; inspect the preview before upgrading a different host version.
 

@@ -2,20 +2,20 @@
 
 [简体中文](README.zh.md)
 
-Version 0.3.0 adds a **Manage** tab to DeepSeek Harness Web Settings. It manages third-party profile plugins and provides a separate whole-DSH update section. Tested against DSH `0.1.5-rc.2`; later versions require the same public Loader, profile patch, WebServer and settings-slot contracts.
+Version 0.3.1 adds a **Manage** tab to DeepSeek Harness Web Settings. It manages third-party profile plugins and provides a separate whole-DSH update section. Tested against DSH `0.1.5-rc.2`; later versions require the same public Loader, profile patch, WebServer and settings-slot contracts.
 
 ## Install and remove
 
 The shared installer keeps this suite under the DSH data home and registers each package with the native DSH CLI:
 
 ```sh
-npx useful-dsh-plugins@0.5.0 setup
+npx useful-dsh-plugins@0.5.1 setup
 ```
 
 See the [suite README](../README.md) for installer options and release archives. For a standalone archive:
 
 ```sh
-dsh plugin --profile web add ./useful-dsh-plugin-manager-0.3.0.tgz
+dsh plugin --profile web add ./useful-dsh-plugin-manager-0.3.1.tgz
 # Restart DSH once to load the new package and browser tab.
 dsh plugin --profile web remove useful-dsh-plugin-manager
 ```
