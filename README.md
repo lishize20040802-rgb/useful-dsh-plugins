@@ -22,6 +22,12 @@ With DSH and pnpm already installed, one command installs the collection:
 npx --yes useful-dsh-plugins@0.5.0 setup
 ```
 
+The same installer is also available directly from the public GitHub release:
+
+```sh
+npx --yes --package=https://github.com/lishize20040802-rgb/useful-dsh-plugins/releases/download/v0.5.0/useful-dsh-plugins-0.5.0.tgz useful-dsh-plugins setup
+```
+
 Use `setup --preview` to inspect the plan first. The installer verifies release checksums, stores archives and extracted packages inside **`<DSH_HOME>/third-party/`**, backs up the profile manifest, and calls the official DSH CLI to register the five packages. DSH keeps its native runtime resolution under `profiles/<profile>/node_modules`; the installer does not patch the host installation. Re-run the versioned command to repair or update this collection. Existing custom data paths are preserved.
 
 ```text
